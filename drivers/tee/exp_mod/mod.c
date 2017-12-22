@@ -142,6 +142,7 @@ static int ofs_smc(void) {
 			printk("lwg:a1 = %08x\n", res.a1);
 			printk("lwg:a2 = %08x\n", res.a2);
 			printk("lwg:a3 = %08x\n", res.a3);
+			/* TODO: change this into a unified msg representation */
 			filename = (char *)shm->kaddr;
 			if (filename) {
 				printk("lwg:%s:mkdirat \"%s\"\n", __func__, filename);

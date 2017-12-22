@@ -39,11 +39,6 @@
 struct tee_device *ofs_tee = NULL;
 EXPORT_SYMBOL(ofs_tee);
 
-int ofs_mkdir(const char *path, int mode) {
-	sys_mkdirat(-100, path, mode);
-}
-EXPORT_SYMBOL(ofs_mkdir);
-
 
 
 
