@@ -199,6 +199,11 @@ getname_flags(const char __user *filename, int flags, int *empty)
 	result->uptr = filename;
 	result->aname = NULL;
 	audit_getname(result);
+
+	/* lwg: debugging filename cp */
+//	if (result->name)
+//		printk("lwg:%s:getname for %s\n", __func__, result->name);
+
 	return result;
 }
 
@@ -3583,9 +3588,13 @@ static struct dentry *filename_create(int dfd, struct filename *name,
 	 */
 	lookup_flags &= LOOKUP_REVAL;
 
+	printk("lwg:%s: %d hit, lookup %s\n", __func__, __LINE__, name->name);
+
 	name = filename_parentat(dfd, name, lookup_flags, path, &last, &type);
-	if (IS_ERR(name))
+	if (IS_ERR(name)) {
+//		printk("lwg:%s: %d hit\n", __func__, __LINE__);
 		return ERR_CAST(name);
+	}
 
 	/*
 	 * Yucky last component or no last component at all?
@@ -3602,12 +3611,16 @@ static struct dentry *filename_create(int dfd, struct filename *name,
 	lookup_flags |= LOOKUP_CREATE | LOOKUP_EXCL;
 	inode_lock_nested(path->dentry->d_inode, I_MUTEX_PARENT);
 	dentry = __lookup_hash(&last, path->dentry, lookup_flags);
-	if (IS_ERR(dentry))
+	if (IS_ERR(dentry)) {
+//		printk("lwg:%s: %d hit, lookup %s\n",__func__, __LINE__, last.name);
 		goto unlock;
+	}
 
 	error = -EEXIST;
-	if (d_is_positive(dentry))
+	if (d_is_positive(dentry)) {
+//		printk("lwg:%s: %d hit, lookup %s\n",__func__, __LINE__, last.name);
 		goto fail;
+	}
 
 	/*
 	 * Special case - lookup gave negative, but... we had foo/bar/
@@ -3788,9 +3801,19 @@ SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
 	struct path path;
 	int error;
 	unsigned int lookup_flags = LOOKUP_DIRECTORY;
+	unsigned long max_addr, src_addr;
 
 retry:
-	dentry = user_path_create(dfd, pathname, &path, lookup_flags);
+	max_addr = user_addr_max();
+	src_addr = (unsigned long)pathname;
+	/* lwg: request from userspace */
+	if (likely(src_addr < max_addr)) {
+		dentry = user_path_create(dfd, pathname, &path, lookup_flags);
+	} else {
+		/* lwg: request from kern space worked */
+		dentry = kern_path_create(dfd, pathname, &path, lookup_flags);
+	}	
+
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
 

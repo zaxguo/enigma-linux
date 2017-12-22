@@ -102,6 +102,8 @@ long strncpy_from_user(char *dst, const char __user *src, long count)
 {
 	unsigned long max_addr, src_addr;
 
+	/* lwg: we have to hack this */
+
 	if (unlikely(count <= 0))
 		return 0;
 
@@ -117,6 +119,11 @@ long strncpy_from_user(char *dst, const char __user *src, long count)
 		retval = do_strncpy_from_user(dst, src, count, max);
 		user_access_end();
 		return retval;
+	} else {
+		printk("lwg:%s:copy within kernel space:copying %s\n", __func__, src);
+		dst = src;
+		printk("lwg:%s:kernel space strcpy complete, len = %lu, %s\n", __func__, strlen(dst), dst);
+		return strlen(dst);
 	}
 	return -EFAULT;
 }

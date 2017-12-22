@@ -30,9 +30,23 @@
 #include "optee_private.h"
 #include "optee_smc.h"
 
+#include <linux/syscalls.h>
+
 #define DRIVER_NAME "optee"
 
 #define OPTEE_SHM_NUM_PRIV_PAGES	1
+
+struct tee_device *ofs_tee = NULL;
+EXPORT_SYMBOL(ofs_tee);
+
+int ofs_mkdir(const char *path, int mode) {
+	sys_mkdirat(-100, path, mode);
+}
+EXPORT_SYMBOL(ofs_mkdir);
+
+
+
+
 
 /**
  * optee_from_msg_param() - convert from OPTEE_MSG parameters to
@@ -599,8 +613,15 @@ static int __init optee_driver_init(void)
 
 	optee_svc = optee;
 
+//	ofs_optee = optee;
+	/* lwg: expose the device interface */
+
+	printk("lwg:%s:expose tee interface as ofs_tee\n", __func__);
+	ofs_tee = optee->teedev;
+
 	optee_bm_enable();
 
+	printk("lwg:%s:OPTEE driver init success!\n", __func__);
 	return 0;
 }
 module_init(optee_driver_init);

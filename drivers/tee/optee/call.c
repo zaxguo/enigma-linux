@@ -320,6 +320,7 @@ int optee_close_session(struct tee_context *ctx, u32 session)
 int optee_invoke_func(struct tee_context *ctx, struct tee_ioctl_invoke_arg *arg,
 		      struct tee_param *param)
 {
+	printk("lwg:%s:entered, session id = %08d\n", __func__, arg->session);
 	struct optee_context_data *ctxdata = ctx->data;
 	struct tee_shm *shm;
 	struct optee_msg_arg *msg_arg;

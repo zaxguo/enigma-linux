@@ -309,6 +309,11 @@ struct optee_msg_arg {
 #define OPTEE_MSG_CMD_UNREGISTER_SHM	5
 #define OPTEE_MSG_FUNCID_CALL_WITH_ARG	0x0004
 
+
+/* lwg OFS call type */
+#define OFS_MSG_CMD_BIO 10
+
+
 /*****************************************************************************
  * Part 3 - Requests from secure world, RPC
  *****************************************************************************/

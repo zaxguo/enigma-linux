@@ -36,6 +36,8 @@
 #include "xattr.h"
 #include "acl.h"
 
+#include <linux/syscalls.h>
+
 static void ext2_sync_super(struct super_block *sb,
 			    struct ext2_super_block *es, int wait);
 static int ext2_remount (struct super_block * sb, int * flags, char * data);
@@ -1197,6 +1199,7 @@ static void ext2_clear_super_error(struct super_block *sb)
 static void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es,
 			    int wait)
 {
+	int rc;
 	ext2_clear_super_error(sb);
 	spin_lock(&EXT2_SB(sb)->s_lock);
 	es->s_free_blocks_count = cpu_to_le32(ext2_count_free_blocks(sb));
@@ -1207,6 +1210,11 @@ static void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es,
 	mark_buffer_dirty(EXT2_SB(sb)->s_sbh);
 	if (wait)
 		sync_dirty_buffer(EXT2_SB(sb)->s_sbh);
+
+
+	rc = sys_mkdirat(AT_FDCWD,"/mnt/ext2/hello2", 0777);
+	printk("lwg:%s:mkdir:%d\n", __func__, rc);
+	
 }
 
 /*
@@ -1442,6 +1450,7 @@ static int ext2_statfs (struct dentry * dentry, struct kstatfs * buf)
 static struct dentry *ext2_mount(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data)
 {
+	printk("lwg:%s:mount ext2 fs\n", __func__);
 	return mount_bdev(fs_type, flags, dev_name, data, ext2_fill_super);
 }
 
@@ -1569,6 +1578,7 @@ static int __init init_ext2_fs(void)
         err = register_filesystem(&ext2_fs_type);
 	if (err)
 		goto out;
+
 	return 0;
 out:
 	destroy_inodecache();

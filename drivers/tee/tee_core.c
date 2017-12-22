@@ -24,6 +24,8 @@
 #include <linux/uaccess.h>
 #include "tee_private.h"
 
+#include <linux/syscalls.h>
+
 #define TEE_NUM_DEVICES	32
 
 #define TEE_IOCTL_PARAM_SIZE(x) (sizeof(struct tee_param) * (x))
@@ -37,6 +39,9 @@ static DEFINE_SPINLOCK(driver_lock);
 
 static struct class *tee_class;
 static dev_t tee_devt;
+
+
+
 
 static struct tee_context *teedev_open(struct tee_device *teedev)
 {
@@ -825,6 +830,7 @@ int tee_device_register(struct tee_device *teedev)
 	}
 
 	teedev->flags |= TEE_DEVICE_FLAG_REGISTERED;
+
 	return 0;
 
 err_sysfs_create_group:

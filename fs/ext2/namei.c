@@ -239,6 +239,7 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, umode_t mode)
 {
 	struct inode * inode;
 	int err;
+	printk("lwg:%s:mkdir for %s\n", __func__, dentry->d_iname);
 
 	err = dquot_initialize(dir);
 	if (err)
@@ -271,6 +272,9 @@ static int ext2_mkdir(struct inode * dir, struct dentry * dentry, umode_t mode)
 	unlock_new_inode(inode);
 	d_instantiate(dentry, inode);
 out:
+	if (!err) {
+		printk("lwg:%s:mkdir for %s success!\n", __func__, dentry->d_iname);
+	}
 	return err;
 
 out_fail:
