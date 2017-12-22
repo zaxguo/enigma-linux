@@ -1,6 +1,10 @@
-#include <linux/module.h>    // included for all kernel modules
-#include <linux/kernel.h>    // included for KERN_INFO
-#include <linux/init.h>      // included for __init and __exit macros
+/* lwg: This kernel module serves two goals:
+ * 1: kick starts the TA in secure world 
+ * 2: handle the request issued by secure world */
+
+#include <linux/module.h>    
+#include <linux/kernel.h>   
+#include <linux/init.h>    
 
 #include <linux/slab.h> // mem
 #include <linux/tee_drv.h> // tee
@@ -17,7 +21,7 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("LWG");
-MODULE_DESCRIPTION("Experimental Modules Interacting with TEE in Kernel Space");
+MODULE_DESCRIPTION("OFS Normal World Handler Interacting with TEE");
 
 extern struct tee_device *ofs_tee;
 extern struct tee_shm *tee_shm_alloc(struct tee_context *ctx, size_t size, u32 flags);
@@ -59,6 +63,9 @@ static int ofs_tee_open(struct tee_device *tee) {
 }
 
 
+
+
+
 static int ofs_smc(void) {
 	struct optee_rpc_param param = {};
 	struct arm_smccc_res res;
@@ -80,17 +87,16 @@ static int ofs_smc(void) {
 
 	/* First allocate the shm */
 	shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+
 	if (IS_ERR(shm)) {
 		return PTR_ERR(shm);
 	}
 	printk("lwg:%s:shm allocated va@ %p\n", __func__, shm);
-	
 	printk("lwg:%s:BEFORE:dump the mem content\n", __func__);
 	for (i = 0; i < 4; ++i) {
 		int content; 
 		printk("lwg:%d = [%x]\n", i, *(int *)(shm->kaddr + i));
 	}
-
 
 	printk("lwg:%s:mess with this newly allocated mem\n", __func__);
 	*((int *)shm->kaddr + 0) = 0xd;
@@ -112,6 +118,8 @@ static int ofs_smc(void) {
 	/* Then, setup the args according to calling convention */
 
 	param.a0 = OPTEE_SMC_CALL_WITH_ARG;
+	/* Pair the paddr of allocated shared mem into register a1 and a2
+	 * The shm is used for message passing  */
 	reg_pair_from_64(&param.a1, &param.a2, shm_pa);
 	/* lwg: These are not loaded into register due to the exeception 
 	 * hanler in sec world don't load them */
@@ -125,12 +133,10 @@ static int ofs_smc(void) {
 	while(true) {
 		arm_smccc_smc(param.a0, param.a1, param.a2, param.a3, param.a4, param.a5, param.a6, param.a7, &res);
 		if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
-
 			if (!is_first)
 				break;
 			if (is_first)
 				is_first = 0;
-
 			printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 			printk("lwg:a0 = %08x\n", res.a0);
 			printk("lwg:a1 = %08x\n", res.a1);
