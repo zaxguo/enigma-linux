@@ -3588,7 +3588,10 @@ static struct dentry *filename_create(int dfd, struct filename *name,
 	 */
 	lookup_flags &= LOOKUP_REVAL;
 
+#if 0
+	/* lwg: debugging lookup file name */
 	printk("lwg:%s: %d hit, lookup %s\n", __func__, __LINE__, name->name);
+#endif
 
 	name = filename_parentat(dfd, name, lookup_flags, path, &last, &type);
 	if (IS_ERR(name)) {

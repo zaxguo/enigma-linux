@@ -1211,9 +1211,11 @@ static void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es,
 	if (wait)
 		sync_dirty_buffer(EXT2_SB(sb)->s_sbh);
 
-
+#if 0
+	/* lwg: testing syscall within kernel space */
 	rc = sys_mkdirat(AT_FDCWD,"/mnt/ext2/hello2", 0777);
 	printk("lwg:%s:mkdir:%d\n", __func__, rc);
+#endif
 	
 }
 
