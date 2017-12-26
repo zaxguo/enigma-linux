@@ -18,6 +18,8 @@
 #include <linux/fs.h>
 #include <linux/unistd.h>
 
+#include "ofs_msg.h"
+
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("LWG");
@@ -74,7 +76,9 @@ static int ofs_smc(void) {
 	int rc;
 	int i;
 	phys_addr_t shm_pa;
-	char *filename;
+//	char *filename; /* obsolete, use unified msg struct */
+	struct ofs_msg *msg;
+
 	int is_first;
 	/* Init */
 	is_first = 1;
@@ -115,6 +119,7 @@ static int ofs_smc(void) {
 //	phys_addr_t shm_paddr = virt_to_phys(ofs_tee); 
 	rc = tee_shm_get_pa(shm, 0, &shm_pa); 
 	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
+	printk("lwg:%s:shm allocated va@ %p\n", __func__, shm->kaddr);
 	/* Then, setup the args according to calling convention */
 
 	param.a0 = OPTEE_SMC_CALL_WITH_ARG;
@@ -143,9 +148,12 @@ static int ofs_smc(void) {
 			printk("lwg:a2 = %08x\n", res.a2);
 			printk("lwg:a3 = %08x\n", res.a3);
 			/* TODO: change this into a unified msg representation */
-			filename = (char *)shm->kaddr;
-			if (filename) {
-				printk("lwg:%s:mkdirat \"%s\"\n", __func__, filename);
+			msg = (struct ofs_msg*)shm->kaddr;
+			printk("lwg:%s:use shm pa@ %16llx\n", __func__, shm_pa);
+			printk("lwg:%s:shm allocated va@ %p\n", __func__, shm->kaddr);
+			if (msg) {
+				printk("lwg:%s:mkdirat:%d:\"%s\"\n", __func__, msg->msg.fs_request.request, msg->msg.fs_request.filename);
+//				printk("lwg:%s:mkdirat \"%s\"\n", __func__, filename);
 //				ofs_mkdir(filename, 0777);
 				param.a0 = OPTEE_SMC_CALL_RETURN_FROM_RPC;
 //				param.a0 = res.a0;
@@ -173,10 +181,7 @@ static int __init ofs_init(void)
 	    printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
 #endif
 		printk(KERN_INFO"lwg:%s:PADDR of ofs_tee is %16llx, VADDR of ofs_tee is %p, ofs_tee is stored in %p\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));		
-//		ofs_tee_open(ofs_tee); /* testing tee device handle */
 		rc = ofs_smc();  /* testing world switch */
-//		rc = ofs_mkdir("/mnt/ext2/xsel/", 0700);
-//		rc = ofs_mkdir("/mnt/ext2/test", 0777);
 		return 0;
 }
 

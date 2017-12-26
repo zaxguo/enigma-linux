@@ -1,11 +1,14 @@
 #ifndef OFS_MSG_H
 #define OFS_MSG_H
 
+/* the syscalls */
 #define OFS_MKDIR	0
 #define OFS_OPEN	1
 #define OFS_READ	2
 #define OFS_WRITE	3
 
+
+#define MAX_FILENAME 99
 
 /* OFS fs request: sec world --> normal world
  * a fs request contains 3 members:
@@ -16,7 +19,7 @@
 struct ofs_fs_request {
 	int request;	
 	int flag;
-	char *filename;
+	char filename[MAX_FILENAME];
 };
 
 /* OFS fs response: normal world --> secure world */
@@ -28,20 +31,31 @@ struct ofs_fs_response {
 
 
 struct ofs_page_request {
-
+	int dummy;
 };
 
 struct ofs_page_response {
-
+	int dummy;
 };
 
 
 struct ofs_msg {
 	union {
-		struct ofs_fs_request;
-		struct ofs_fs_response;
-		struct ofs_page_request;
-		struct ofs_page_response;
-	} msg;
+		struct ofs_fs_request fs_request;
+		struct ofs_fs_response fs_response;
+		struct ofs_page_request page_request;
+		struct ofs_page_response page_response;
+	}msg; /* C99 doens't support anonymous union */
 };
+
+
+/* helper function */
+int ofs_fs_request_alloc(struct ofs_fs_request *);
+struct ofs_msg *ofs_msg_alloc(void);
+
+
+
+
+
+
 #endif 
