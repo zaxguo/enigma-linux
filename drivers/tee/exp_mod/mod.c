@@ -20,6 +20,7 @@
 
 #include "ofs_msg.h" /* TODO: may move this to kernel header for later use */
 #include "ofs_private.h"  /* some utility functions */
+#include "ofs_ops.h"
 
 
 MODULE_LICENSE("GPL");
@@ -30,7 +31,7 @@ extern struct tee_device *ofs_tee;
 extern struct tee_shm *tee_shm_alloc(struct tee_context *ctx, size_t size, u32 flags);
 extern int tee_shm_get_pa(struct tee_shm *shm, size_t off, phys_addr_t *pa); 
 
-extern int	ofs_mkdir(const char *, int );
+extern int	ofs_mkdir(const char *, int);
 
 static int ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
@@ -62,9 +63,6 @@ static int ofs_tee_open(struct tee_device *tee) {
 }
 
 
-
-
-
 static int ofs_smc(void) {
 	struct optee_rpc_param param = {};
 	struct arm_smccc_res res;
@@ -74,10 +72,12 @@ static int ofs_smc(void) {
 	int i;
 	phys_addr_t shm_pa;
 	struct ofs_msg *msg;
-
 	int is_first;
+	int op;
+
 	/* Init */
 	is_first = 1;
+	op = 0;
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
 		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);
@@ -111,22 +111,37 @@ static int ofs_smc(void) {
 	while(true) {
 		arm_smccc_smc(param.a0, param.a1, param.a2, param.a3, param.a4, param.a5, param.a6, param.a7, &res);
 		if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
-			if (!is_first)
-				break;
-			if (is_first)
-				is_first = 0;
+			
 			printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 			printk("lwg:a0 = %08x\n", res.a0);
 			printk("lwg:a1 = %08x\n", res.a1);
 			printk("lwg:a2 = %08x\n", res.a2);
 			printk("lwg:a3 = %08x\n", res.a3);
-			msg = recv_ofs_msg(shm);
+
+			if (!is_first)
+				break;
+			if (is_first)
+				is_first = 0;
+						msg = recv_ofs_msg(shm);
 			if (msg) {
-				printk("lwg:%s:mkdirat:%d:\"%s\"\n", __func__, msg->msg.fs_request.request, msg->msg.fs_request.filename);
-				/* TODO: add a handler for different types of request */
-//				ofs_mkdir(filename, 0777);
-				param.a0 = OPTEE_SMC_CALL_RETURN_FROM_RPC;
-//				param.a0 = res.a0;
+				op = msg->msg.fs_request.request;  
+				char *dir = msg->msg.fs_request.filename; 
+				switch (op) {
+				case OFS_MKDIR:
+					printk("lwg:%s:mkdirat:%d:\"%s\"\n", __func__, msg->msg.fs_request.request, msg->msg.fs_request.filename);
+					ofs_mkdir(dir, 0777);
+					/* may change this as needed */
+					param.a0 = OPTEE_SMC_CALL_RETURN_FROM_RPC;
+					break;
+					case OFS_OPEN:
+						break;
+					case OFS_READ:
+						break;
+					case OFS_WRITE:
+						break;
+					default:
+						BUG();
+				}
 				param.a1 = res.a1;
 				param.a2 = res.a2;
 				param.a3 = res.a3; /* lwg: be careful not to touch a3 as it is used for thread id */
@@ -149,7 +164,7 @@ static int __init ofs_init(void)
 	}	
 	printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
 	printk(KERN_INFO"lwg:%s:PADDR of ofs_tee is %16llx, VADDR of ofs_tee is %p, ofs_tee is stored in %p\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));		
-	rc = ofs_smc();  /* testing world switch */
+	rc = ofs_smc();  /* kickstart */
 	return 0;
 }
 
