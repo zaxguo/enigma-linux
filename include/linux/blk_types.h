@@ -30,6 +30,7 @@ struct bio {
 						 * top bits REQ_OP. Use
 						 * accessors.
 						 */
+	/* lwg: use bi_flags to indicate which bio goes to sec world */
 	unsigned short		bi_flags;	/* status, command, etc */
 	unsigned short		bi_ioprio;
 
@@ -148,6 +149,8 @@ struct bio {
  * Request flags.  For use in the cmd_flags field of struct request, and in
  * bi_opf of struct bio.  Note that some flags are only valid in either one.
  */
+/* lwg: There are exactly 31 bits... we have to add one more to indicate whether
+ * this goes to sec world.. */
 enum rq_flag_bits {
 	/* common flags */
 	__REQ_FAILFAST_DEV,	/* no driver retries of device errors */
@@ -189,6 +192,9 @@ enum rq_flag_bits {
 	__REQ_PM,		/* runtime pm request */
 	__REQ_HASHED,		/* on IO scheduler merge hash */
 	__REQ_MQ_INFLIGHT,	/* track inflight for MQ */
+
+	/* OFS Bits */
+	__REQ_OFS, /* requests directed to secure world */
 	__REQ_NR_BITS,		/* stops here */
 };
 
@@ -235,6 +241,8 @@ enum rq_flag_bits {
 #define REQ_PM			(1ULL << __REQ_PM)
 #define REQ_HASHED		(1ULL << __REQ_HASHED)
 #define REQ_MQ_INFLIGHT		(1ULL << __REQ_MQ_INFLIGHT)
+
+#define REQ_OFS			(1ULL << __REQ_OFS)
 
 enum req_op {
 	REQ_OP_READ,

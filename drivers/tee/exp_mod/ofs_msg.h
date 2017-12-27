@@ -45,7 +45,7 @@ struct ofs_msg {
 		struct ofs_fs_response fs_response;
 		struct ofs_page_request page_request;
 		struct ofs_page_response page_response;
-	}msg; /* C99 doens't support anonymous union */
+	} msg; /* C99 doens't support anonymous union */
 };
 
 

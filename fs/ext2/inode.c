@@ -39,6 +39,10 @@
 #include "acl.h"
 #include "xattr.h"
 
+
+/* lwg:TODO: modify sb_bread() in buffer.c to tailor for ext2 FS 
+ * so that submit_bh can be directed to secure world. */
+
 static int __ext2_write_inode(struct inode *inode, int do_sync);
 
 /*
