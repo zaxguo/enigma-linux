@@ -113,6 +113,7 @@ static int ofs_smc(void) {
 	/* Then, setup the args according to calling convention */
 	while(true) {
 		ofs_switch(shm_pa, &res);
+		/* TODO: might need to hack the SMC func ID for a better name */
 		if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
 
 			printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
