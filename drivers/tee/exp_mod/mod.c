@@ -102,7 +102,7 @@ static int ofs_smc(void) {
 	ctx->teedev = ofs_tee;
 	INIT_LIST_HEAD(&ctx->list_shm);
 
-	/* First allocate the shm */
+	/* allocate shm */
 	shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
 	if (IS_ERR(shm)) {
 		return PTR_ERR(shm);
@@ -111,22 +111,8 @@ static int ofs_smc(void) {
 	rc = tee_shm_get_pa(shm, 0, &shm_pa);
 	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
 	/* Then, setup the args according to calling convention */
-
-	param.a0 = OPTEE_SMC_CALL_WITH_ARG;
-	/* Pair the paddr of allocated shared mem into register a1 and a2
-	 * The shm is used for message passing  */
-	reg_pair_from_64(&param.a1, &param.a2, shm_pa);
-	/* lwg: These are not loaded into register due to the exeception
-	 * hanler in sec world don't load them */
-	param.a3 = 1;
-	param.a4 = 2;
-	param.a5 = 3;
-	param.a6 = 4;
-	param.a7 = 5;
-
-	/* Do the SMC, invoke func is arm_smccc_smc */
 	while(true) {
-		arm_smccc_smc(param.a0, param.a1, param.a2, param.a3, param.a4, param.a5, param.a6, param.a7, &res);
+		ofs_switch(shm_pa, &res);
 		if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
 
 			printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
