@@ -1146,6 +1146,12 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	if (ext2_setup_super (sb, es, sb->s_flags & MS_RDONLY))
 		sb->s_flags |= MS_RDONLY;
 	ext2_write_super(sb);
+
+
+	/* Set the OFS flag here so that any switch 
+	 * won't happen until init is done */
+	sb->s_flags |= MS_OFS;	
+
 	return 0;
 
 cantfind_ext2:

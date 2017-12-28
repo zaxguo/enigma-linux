@@ -38,6 +38,7 @@ Module.symvers
 *.dwo
 *.su
 *.c.[012]*.*
+*.img
 
 #
 # Top-level generic files
@@ -51,6 +52,8 @@ Module.symvers
 /vmlinuz
 /System.map
 /Module.markers
+# lwg: INSTALL_MOD_PATH
+/modules
 
 #
 # Debian directory (make deb-pkg)

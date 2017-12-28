@@ -264,6 +264,10 @@ void buffer_init(void);
  * inline definitions
  */
 
+static inline int is_ofs(struct super_block *sb) {
+	return (sb->s_flags & MS_OFS);
+}
+
 static inline void attach_page_buffers(struct page *page,
 		struct buffer_head *head)
 {
@@ -295,9 +299,13 @@ static inline void bforget(struct buffer_head *bh)
 		__bforget(bh);
 }
 
+/* Switch in here? */
 static inline struct buffer_head *
 sb_bread(struct super_block *sb, sector_t block)
 {
+	if (is_ofs(sb)) {
+		printk("lwg:%s:OFS wants to read blocks 0x%lx\n", __func__, block);
+	}
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
 }
 

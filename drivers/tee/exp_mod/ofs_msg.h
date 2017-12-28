@@ -1,11 +1,11 @@
 #ifndef OFS_MSG_H
 #define OFS_MSG_H
 
-/* the syscalls */
-#define OFS_MKDIR	0
-#define OFS_OPEN	1
-#define OFS_READ	2
-#define OFS_WRITE	3
+/* the FS syscalls issued from secure world */
+#define OFS_MKDIR	1
+#define OFS_OPEN	2
+#define OFS_READ	3
+#define OFS_WRITE	4
 
 
 #define MAX_FILENAME 99
@@ -40,6 +40,7 @@ struct ofs_page_response {
 
 
 struct ofs_msg {
+	int op;
 	union {
 		struct ofs_fs_request fs_request;
 		struct ofs_fs_response fs_response;

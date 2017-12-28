@@ -20,7 +20,8 @@
 
 #include "ofs_msg.h" /* TODO: may move this to kernel header for later use */
 #include "ofs_private.h"  /* some utility functions */
-#include "ofs_ops.h"
+#include "ofs_opcode.h"
+#include "ofs_handler.h"
 
 
 MODULE_LICENSE("GPL");
@@ -62,6 +63,22 @@ static int ofs_tee_open(struct tee_device *tee) {
 	return 0;
 }
 
+
+
+static int ofs_handle_msg(struct ofs_msg *msg) {
+	int opcode = msg->op;
+	int rc;
+	printk("lwg:%s:opcode = %d\n", __func__, opcode);
+	switch (opcode) {
+		case OFS_FS_REQUEST:
+			rc = ofs_handle_fs_msg(msg);
+			break;
+		case OFS_BLK_REQUEST:
+		case OFS_PG_REQUEST:
+			BUG();
+	}
+	return 0;
+}
 
 static int ofs_smc(void) {
 	struct optee_rpc_param param = {};
@@ -123,25 +140,10 @@ static int ofs_smc(void) {
 			if (is_first)
 				is_first = 0;
 			msg = recv_ofs_msg(shm);
+			smp_mb();
 			if (msg) {
-				op = msg->msg.fs_request.request;
-				char *dir = msg->msg.fs_request.filename;
-				switch (op) {
-					case OFS_MKDIR:
-						printk("lwg:%s:mkdirat:%d:\"%s\"\n", __func__, msg->msg.fs_request.request, msg->msg.fs_request.filename);
-						ofs_mkdir(dir, 0777);
-						/* may change this as needed */
-						param.a0 = OPTEE_SMC_CALL_RETURN_FROM_RPC;
-						break;
-					case OFS_OPEN:
-						break;
-					case OFS_READ:
-						break;
-					case OFS_WRITE:
-						break;
-					default:
-						BUG();
-				}
+				ofs_handle_msg(msg);
+				param.a0 = OPTEE_SMC_CALL_RETURN_FROM_RPC;
 				param.a1 = res.a1;
 				param.a2 = res.a2;
 				param.a3 = res.a3; /* lwg: be careful not to touch a3 as it is used for thread id */
@@ -163,7 +165,7 @@ static int __init ofs_init(void)
 		return 1;
 	}
 	printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
-	printk(KERN_INFO"lwg:%s:PADDR of ofs_tee is %16llx, VADDR of ofs_tee is %p, ofs_tee is stored in %p\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
+	printk(KERN_INFO"lwg:%s:ofs_tee@PA %16llx, ofs_tee@VA %p, ofs_tee@VA %p\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 	rc = ofs_smc();  /* kickstart */
 	return 0;
 }
