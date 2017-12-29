@@ -1,4 +1,4 @@
-#include "ofs_msg.h"
+#include <ofs/ofs_msg.h>
 #include "ofs_opcode.h"
 #include "ofs_handler.h"
 

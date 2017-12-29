@@ -9,7 +9,7 @@
 #include <linux/slab.h> // mem
 #include <linux/tee_drv.h> // tee
 #include "../tee_private.h" /* struct tee_shm */
-#include "../optee/optee_private.h" //optee
+#include "../optee/optee_private.h" /* optee_rpc_param */
 #include "../optee/optee_smc.h" //optee
 #include <linux/arm-smccc.h>
 #include <linux/bitops.h>
@@ -18,8 +18,8 @@
 #include <linux/fs.h>
 #include <linux/unistd.h>
 
-#include "ofs_msg.h" /* TODO: may move this to kernel header for later use */
-#include "ofs_private.h"  /* some utility functions */
+#include <ofs/ofs_msg.h> /* struct ofs_msg */
+#include <ofs/ofs_util.h>  /* some utility functions */
 #include "ofs_opcode.h"
 #include "ofs_handler.h"
 
@@ -36,12 +36,13 @@ extern int	ofs_mkdir(const char *, int);
 
 static int ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
+	struct tee_ioctl_invoke_arg arg;
+	struct tee_param param;
 	int rc = 0;
+
 	ofs_context = kzalloc(sizeof(*ofs_context), GFP_KERNEL);
 	ofs_context->teedev = tee;
 	INIT_LIST_HEAD(&ofs_context->list_shm);
-	struct tee_ioctl_invoke_arg arg;
-	struct tee_param param;
 	arg.func = 1;
 	arg.session = 0;
 	arg.cancel_id = 2;
@@ -80,13 +81,12 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 	return 0;
 }
 
+
 static int ofs_smc(void) {
-	struct optee_rpc_param param = {};
 	struct arm_smccc_res res;
 	struct tee_context *ctx;
 	struct tee_shm *shm;
 	int rc;
-	int i;
 	phys_addr_t shm_pa;
 	struct ofs_msg *msg;
 	int is_first;
@@ -110,37 +110,27 @@ static int ofs_smc(void) {
 	printk("lwg:%s:shm allocated va@ %p\n", __func__, shm);
 	rc = tee_shm_get_pa(shm, 0, &shm_pa);
 	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
-	/* Then, setup the args according to calling convention */
-	while(true) {
-		ofs_switch(shm_pa, &res);
-		/* TODO: might need to hack the SMC func ID for a better name */
-		if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
 
-			printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
-			printk("lwg:a0 = %08x\n", res.a0);
-			printk("lwg:a1 = %08x\n", res.a1);
-			printk("lwg:a2 = %08x\n", res.a2);
-			printk("lwg:a3 = %08x\n", res.a3);
+	/* Kick start the benchmark */
+	ofs_switch_begin(shm_pa, &res);
+	/* TODO: might need to hack the SMC func ID for a better name */
+	if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
 
-			if (!is_first)
-				break;
-			if (is_first)
-				is_first = 0;
-			msg = recv_ofs_msg(shm);
-			smp_mb();
-			if (msg) {
-				ofs_handle_msg(msg);
-				param.a0 = OPTEE_SMC_CALL_RETURN_FROM_RPC;
-				param.a1 = res.a1;
-				param.a2 = res.a2;
-				param.a3 = res.a3; /* lwg: be careful not to touch a3 as it is used for thread id */
-				printk("lwg:%s:returning to sec world\n", __func__);
-			}
-		} else {
-			rc = res.a0;
-			break;
-		}
+		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
+		printk("lwg:a0 = %08lx\n", res.a0);
+		printk("lwg:a1 = %08lx\n", res.a1);
+		printk("lwg:a2 = %08lx\n", res.a2);
+		printk("lwg:a3 = %08lx\n", res.a3);
+		msg = recv_ofs_msg(shm);
+		smp_mb();
+		if (msg) 
+			ofs_handle_msg(msg);
+	} else {
+		rc = res.a0;
 	}
+	/* Finish handling, returning to secure world */
+	ofs_switch_resume(&res);
+
 	return rc;
 }
 
