@@ -38,6 +38,9 @@
 
 #include <linux/syscalls.h>
 
+#include <linux/tee_drv.h>
+extern struct tee_shm *ofs_shm; /* init by ofs handler module */
+
 static void ext2_sync_super(struct super_block *sb,
 			    struct ext2_super_block *es, int wait);
 static int ext2_remount (struct super_block * sb, int * flags, char * data);
@@ -1458,7 +1461,15 @@ static int ext2_statfs (struct dentry * dentry, struct kstatfs * buf)
 static struct dentry *ext2_mount(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data)
 {
+
 	printk("lwg:%s:mount ext2 fs\n", __func__);
+	/* By the time we really need this it should be already 
+	 * initialized so it doesn't matter really here..  */
+	if (ofs_shm) { 
+		printk("lwg:%s:found tee_shm\n", __func__);
+	} else {
+		printk("lwg:%s:tee_shm non-exist\n", __func__);
+	}
 	return mount_bdev(fs_type, flags, dev_name, data, ext2_fill_super);
 }
 

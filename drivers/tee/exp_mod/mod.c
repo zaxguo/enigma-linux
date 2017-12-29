@@ -34,6 +34,9 @@ extern int tee_shm_get_pa(struct tee_shm *shm, size_t off, phys_addr_t *pa);
 
 extern int	ofs_mkdir(const char *, int);
 
+extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
+extern struct arm_smccc_res ofs_res;
+
 static int ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
 	struct tee_ioctl_invoke_arg arg;
@@ -83,9 +86,8 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 
 
 static int ofs_bench(void) {
-	struct arm_smccc_res res;
+//	struct arm_smccc_res *res;
 	struct tee_context *ctx;
-	struct tee_shm *shm;
 	int rc;
 	phys_addr_t shm_pa;
 	struct ofs_msg *msg;
@@ -103,30 +105,29 @@ static int ofs_bench(void) {
 	INIT_LIST_HEAD(&ctx->list_shm);
 
 	/* allocate shm */
-	shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
-	if (IS_ERR(shm)) {
-		return PTR_ERR(shm);
+	ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+	if (IS_ERR(ofs_shm)) {
+		return PTR_ERR(ofs_shm);
 	}
-	printk("lwg:%s:shm allocated va@ %p\n", __func__, shm);
-	rc = tee_shm_get_pa(shm, 0, &shm_pa);
+	printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
+	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
-
 	/* Kick start the benchmark */
-	ofs_switch_begin(shm_pa, &res);
+	ofs_switch_begin(shm_pa, &ofs_res);
 	/* TODO: might need to hack the SMC func ID for a better name */
-	if (OPTEE_SMC_RETURN_IS_RPC(res.a0)) {
+	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
 
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
-		printk("lwg:a0 = %08lx\n", res.a0);
-		printk("lwg:a1 = %08lx\n", res.a1);
-		printk("lwg:a2 = %08lx\n", res.a2);
-		printk("lwg:a3 = %08lx\n", res.a3);
-		msg = recv_ofs_msg(shm);
+		printk("lwg:a0 = %08lx\n", ofs_res.a0);
+		printk("lwg:a1 = %08lx\n", ofs_res.a1);
+		printk("lwg:a2 = %08lx\n", ofs_res.a2);
+		printk("lwg:a3 = %08lx\n", ofs_res.a3);
+		msg = recv_ofs_msg(ofs_shm);
 		smp_mb();
 		if (msg) 
 			ofs_handle_msg(msg);
 	} else {
-		rc = res.a0;
+		rc = ofs_res.a0;
 	}
 	/* Finish handling, returning to secure world */
 
@@ -136,7 +137,7 @@ static int ofs_bench(void) {
 	msg->msg.fs_response.payload = NULL;
 	smp_mb();
 
-	ofs_switch_resume(&res);
+	ofs_switch_resume(&ofs_res);
 
 	return rc;
 }

@@ -14,6 +14,13 @@
 #include <linux/wait.h>
 #include <linux/atomic.h>
 
+/* OFS use */
+#include <ofs/ofs_util.h>
+#include <linux/tee_drv.h>
+
+extern struct tee_shm *ofs_shm; 
+extern struct arm_smccc_res ofs_res;
+
 #ifdef CONFIG_BLOCK
 
 enum bh_state_bits {
@@ -303,8 +310,14 @@ static inline void bforget(struct buffer_head *bh)
 static inline struct buffer_head *
 sb_bread(struct super_block *sb, sector_t block)
 {
+	struct ofs_msg *msg;
 	if (is_ofs(sb)) {
+		msg = recv_ofs_msg(ofs_shm);
+		msg->msg.fs_response.blocknr = block;
+		msg->msg.fs_response.rw = 0x1;
+		msg->msg.fs_response.payload = NULL;
 		printk("lwg:%s:OFS wants to read blocks 0x%lx\n", __func__, block);
+		ofs_switch_resume(&ofs_res);					
 	}
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
 }
