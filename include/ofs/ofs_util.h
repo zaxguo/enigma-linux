@@ -12,7 +12,6 @@ inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 }
 
 
-/* TODO: a better name, this function is used to kick start the benchmark */
 inline void ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
 #ifdef OFS_DEBUG
@@ -28,7 +27,7 @@ inline void ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res
 			param.a4 = 2;
 			param.a5 = 3;
 			param.a6 = 4;
-			param.a7 = 5;
+//			param.a7 = 5; /* Don't touch a7 since it'll be used as clnt id */
 #endif
 			/* Pair the paddr of allocated shared mem into register a1 and a2
 			 * The shm is used for message passing  */
@@ -39,7 +38,7 @@ inline void ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res
 			param.a2 = res->a2;
 			param.a3 = res->a3; /* lwg: be careful not to touch a3 as it is used for thread id */
 #ifdef OFS_DEBUG
-			printk("lwg:%s:returning to sec world thread [%d]\n", __func__, res.a3);
+			printk("lwg:%s:returning to sec world thread [%d]\n", __func__, res->a3);
 #endif
 			break;
 		default:

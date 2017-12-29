@@ -82,7 +82,7 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 }
 
 
-static int ofs_smc(void) {
+static int ofs_bench(void) {
 	struct arm_smccc_res res;
 	struct tee_context *ctx;
 	struct tee_shm *shm;
@@ -129,6 +129,13 @@ static int ofs_smc(void) {
 		rc = res.a0;
 	}
 	/* Finish handling, returning to secure world */
+
+	msg->op = OFS_BLK_REQUEST;
+	msg->msg.fs_response.blocknr = 0xdeadbeef;
+	msg->msg.fs_response.rw = 0x1;
+	msg->msg.fs_response.payload = NULL;
+	smp_mb();
+
 	ofs_switch_resume(&res);
 
 	return rc;
@@ -143,7 +150,7 @@ static int __init ofs_init(void)
 	}
 	printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA %16llx, ofs_tee@VA %p, ofs_tee@VA %p\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
-	rc = ofs_smc();  /* kickstart */
+	rc = ofs_bench();  /* kickstart */
 	return 0;
 }
 
