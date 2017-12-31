@@ -16,6 +16,8 @@
 
 /* OFS use */
 #include <ofs/ofs_util.h>
+/* To package request */
+#include <ofs/ofs_opcode.h> 
 #include <linux/tee_drv.h>
 
 extern struct tee_shm *ofs_shm; 
@@ -313,6 +315,7 @@ sb_bread(struct super_block *sb, sector_t block)
 	struct ofs_msg *msg;
 	if (is_ofs(sb)) {
 		msg = recv_ofs_msg(ofs_shm);
+		msg->op = OFS_BLK_REQUEST;
 		msg->msg.fs_response.blocknr = block;
 		msg->msg.fs_response.rw = 0x1;
 		msg->msg.fs_response.payload = NULL;

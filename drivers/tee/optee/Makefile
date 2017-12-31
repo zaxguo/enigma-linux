@@ -6,3 +6,4 @@ optee-objs += supp.o
 optee-objs += bench.o
 # OFS 
 optee-objs += ofs/ofs_dir.o
+optee-objs += ofs/ofs_shm.o

@@ -20,7 +20,7 @@
 
 #include <ofs/ofs_msg.h> /* struct ofs_msg */
 #include <ofs/ofs_util.h>  /* some utility functions */
-#include "ofs_opcode.h"
+#include <ofs/ofs_opcode.h>
 #include "ofs_handler.h"
 
 
@@ -130,7 +130,8 @@ static int ofs_bench(void) {
 		rc = ofs_res.a0;
 	}
 	/* Finish handling, returning to secure world */
-
+#if 0 
+	/* Testing code, to see if a block request can be passed back */
 	msg->op = OFS_BLK_REQUEST;
 	msg->msg.fs_response.blocknr = 0xdeadbeef;
 	msg->msg.fs_response.rw = 0x1;
@@ -138,6 +139,8 @@ static int ofs_bench(void) {
 	smp_mb();
 
 	ofs_switch_resume(&ofs_res);
+#endif 
+
 
 	return rc;
 }

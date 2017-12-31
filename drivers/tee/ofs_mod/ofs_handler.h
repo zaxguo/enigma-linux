@@ -4,7 +4,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include "ofs_opcode.h"
 #include <ofs/ofs_msg.h>
 
 
