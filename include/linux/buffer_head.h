@@ -314,12 +314,10 @@ sb_bread(struct super_block *sb, sector_t block)
 {
 	struct ofs_msg *msg;
 	if (is_ofs(sb)) {
-		msg = recv_ofs_msg(ofs_shm);
-		msg->op = OFS_BLK_REQUEST;
-		msg->msg.fs_response.blocknr = block;
-		msg->msg.fs_response.rw = 0x1;
-		msg->msg.fs_response.payload = NULL;
 		printk("lwg:%s:OFS wants to read blocks 0x%lx\n", __func__, block);
+		msg = recv_ofs_msg(ofs_shm);
+		ofs_blk_read(msg, block);
+		/* TODO: move switch inside blk_read? */
 		ofs_switch_resume(&ofs_res);					
 	}
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);

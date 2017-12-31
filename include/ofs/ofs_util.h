@@ -10,10 +10,23 @@
 #include <ofs/optee_msg.h>
 #include <ofs/optee_smc.h>
 #include <ofs/tee_private.h>
+/* OFS msg sending */
 #include <ofs/ofs_msg.h>
+#include <ofs/ofs_opcode.h>
 
 static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 	return (struct ofs_msg *)shm->kaddr;
+}
+
+static inline void ofs_blk_request(struct ofs_msg *msg, sector_t block, int rw) {
+	msg->op = OFS_BLK_REQUEST;
+	msg->msg.fs_response.blocknr = block;
+	msg->msg.fs_response.rw = rw;
+	msg->msg.fs_response.payload = NULL;
+}
+
+static inline void ofs_blk_read(struct ofs_msg *msg, sector_t block) {
+	return ofs_blk_request(msg, block, 0x1);
 }
 
 
