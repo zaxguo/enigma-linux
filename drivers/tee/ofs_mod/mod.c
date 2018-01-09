@@ -17,6 +17,8 @@
 #include <linux/syscalls.h> // syscall
 #include <linux/fs.h>
 #include <linux/unistd.h>
+#include <linux/mm.h> /* ioremap */
+#include <asm/page.h>
 
 #include <ofs/ofs_msg.h> /* struct ofs_msg */
 #include <ofs/ofs_util.h>  /* some utility functions */
@@ -122,6 +124,16 @@ static int ofs_bench(void) {
 		printk("lwg:a1 = %08lx\n", ofs_res.a1);
 		printk("lwg:a2 = %08lx\n", ofs_res.a2);
 		printk("lwg:a3 = %08lx\n", ofs_res.a3);
+
+		/* In our page test a1 is used for PA of allocated page */
+		phys_addr_t pa = ofs_res.a1;
+		int			idx = ofs_res.a2;
+		void *va = ioremap(pa, PAGE_SIZE);
+		smp_mb();
+		printk("lwg:%s:trying to access [%08lx] mapped to [%p]\n", __func__,pa, va);
+		/* It turns out that this PA can be accessed... */
+		printk("lwg:%s: *(int *)va = [%08x]\n", __func__, *(int *)va);
+
 		msg = recv_ofs_msg(ofs_shm);
 		smp_mb();
 		if (msg) 
