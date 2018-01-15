@@ -14,21 +14,8 @@
 #include <ofs/ofs_msg.h>
 #include <ofs/ofs_opcode.h>
 
-static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
-	return (struct ofs_msg *)shm->kaddr;
-}
-
-static inline void ofs_blk_request(struct ofs_msg *msg, sector_t block, int rw) {
-	msg->op = OFS_BLK_REQUEST;
-	msg->msg.fs_response.blocknr = block;
-	msg->msg.fs_response.rw = rw;
-	msg->msg.fs_response.payload = NULL;
-}
-
-static inline void ofs_blk_read(struct ofs_msg *msg, sector_t block) {
-	return ofs_blk_request(msg, block, 0x1);
-}
-
+extern struct tee_shm *ofs_shm;
+extern struct arm_smccc_res ofs_res;
 
 static inline void ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
@@ -80,5 +67,41 @@ static inline void ofs_switch_begin(phys_addr_t shm_pa, struct arm_smccc_res *re
 #endif
 	ofs_switch(OPTEE_SMC_CALL_WITH_ARG, shm_pa, res);
 }
+
+static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
+	return (struct ofs_msg *)shm->kaddr;
+}
+
+
+
+static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, int flag) {
+	msg->op = OFS_PG_REQUEST;
+	msg->msg.page_request.flag  = flag;
+	msg->msg.page_request.index = index;
+	msg->msg.page_request.request = 0;
+}
+
+static inline void ofs_pg_request(pgoff_t index, int flag) {
+	struct ofs_msg *msg;
+	msg = recv_ofs_msg(ofs_shm);
+	WARN_ON(!msg);
+	ofs_prep_pg_request(msg, index, flag);
+	ofs_switch_resume(&ofs_res);
+}
+
+static inline void ofs_blk_request(struct ofs_msg *msg, sector_t block, int rw) {
+	msg->op = OFS_BLK_REQUEST;
+	msg->msg.fs_response.blocknr = block;
+	msg->msg.fs_response.rw = rw;
+	msg->msg.fs_response.payload = NULL;
+}
+
+static inline void ofs_blk_read(struct ofs_msg *msg, sector_t block) {
+	return ofs_blk_request(msg, block, 0x1);
+}
+
+
+
+
 
 #endif /* OFS_UTIL_H */

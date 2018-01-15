@@ -79,8 +79,10 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 		case OFS_FS_REQUEST:
 			rc = ofs_handle_fs_msg(msg);
 			break;
-		case OFS_BLK_REQUEST:
+		/* Note that these ``responses'' from sec world shouldn't
+		 * be handled by normal world ... */
 		case OFS_PG_REQUEST:
+		case OFS_BLK_REQUEST:
 			BUG();
 	}
 	return 0;
@@ -125,6 +127,7 @@ static int ofs_bench(void) {
 		printk("lwg:a2 = %08lx\n", ofs_res.a2);
 		printk("lwg:a3 = %08lx\n", ofs_res.a3);
 
+#if 0
 		/* In our page test a1 is used for PA of allocated page */
 		phys_addr_t pa = ofs_res.a1;
 		int			idx = ofs_res.a2;
@@ -133,6 +136,15 @@ static int ofs_bench(void) {
 		printk("lwg:%s:trying to access [%08lx] mapped to [%p]\n", __func__,pa, va);
 		/* It turns out that this PA can be accessed... */
 		printk("lwg:%s: *(int *)va = [%08x]\n", __func__, *(int *)va);
+		/* Page allocation testing code snippet */
+#endif 
+		printk("lwg:%s:%d:sending pg alloc request\n", __func__, __LINE__);
+		ofs_pg_request(0xdeadbeef, 0x1);
+		msg = recv_ofs_msg(ofs_shm);
+		printk("lwg:%s:%d: receiving OP = %d\n", __func__, __LINE__, msg->op);
+		printk("lwg:%s:page allocated @ [0x%lx]\n", __func__, msg->msg.page_response.pa);
+		return rc; /* Testing page request only, return upon success */
+
 
 		msg = recv_ofs_msg(ofs_shm);
 		smp_mb();

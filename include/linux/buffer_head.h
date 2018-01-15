@@ -309,6 +309,7 @@ static inline void bforget(struct buffer_head *bh)
 }
 
 /* Switch in here? */
+/* OFS testing superblock read! */
 static inline struct buffer_head *
 sb_bread(struct super_block *sb, sector_t block)
 {

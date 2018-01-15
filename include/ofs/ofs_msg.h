@@ -1,5 +1,6 @@
 #ifndef OFS_MSG_H
 #define OFS_MSG_H
+#include <linux/types.h>
 
 /* the FS syscalls issued from secure world */
 #define OFS_MKDIR	1
@@ -31,11 +32,13 @@ struct ofs_fs_response {
 
 
 struct ofs_page_request {
-	int dummy;
+	int request;
+	int flag;
+	pgoff_t index;
 };
 
 struct ofs_page_response {
-	int dummy;
+	phys_addr_t pa;
 };
 
 
