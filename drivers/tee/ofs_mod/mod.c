@@ -116,18 +116,19 @@ static int ofs_bench(void) {
 	printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
+	/* prepare the page request */
+	ofs_pg_request(0xdeadbeef, 0x1);
 	/* Kick start the benchmark */
-	ofs_switch_begin(shm_pa, &ofs_res);
+//	ofs_switch_begin(shm_pa, &ofs_res);
 	/* TODO: might need to hack the SMC func ID for a better name */
 	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
-
+#if 0
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 		printk("lwg:a0 = %08lx\n", ofs_res.a0);
 		printk("lwg:a1 = %08lx\n", ofs_res.a1);
 		printk("lwg:a2 = %08lx\n", ofs_res.a2);
 		printk("lwg:a3 = %08lx\n", ofs_res.a3);
 
-#if 0
 		/* In our page test a1 is used for PA of allocated page */
 		phys_addr_t pa = ofs_res.a1;
 		int			idx = ofs_res.a2;

@@ -83,10 +83,15 @@ static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, int f
 
 static inline void ofs_pg_request(pgoff_t index, int flag) {
 	struct ofs_msg *msg;
+	phys_addr_t shm_pa;
+	int rc;
 	msg = recv_ofs_msg(ofs_shm);
-	WARN_ON(!msg);
+	/* This is only to make sure the shm is allocated before sending any messages */
+	WARN_ON(!msg); 	
+	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	ofs_prep_pg_request(msg, index, flag);
-	ofs_switch_resume(&ofs_res);
+//	ofs_switch_resume(&ofs_res);
+	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
 static inline void ofs_blk_request(struct ofs_msg *msg, sector_t block, int rw) {
