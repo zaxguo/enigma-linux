@@ -20,6 +20,11 @@ int ofs_handle_fs_msg(struct ofs_msg *msg) {
 					   	msg->msg.fs_request.filename);
 				break;
 		case OFS_OPEN:
+		printk("lwg:%s:oepn:%d:%d:\"%s\"\n", __func__, 
+						msg->op,\
+					   	msg->msg.fs_request.request,\
+					   	msg->msg.fs_request.filename);
+				break;
 		case OFS_READ:
 		case OFS_WRITE:
 			BUG();

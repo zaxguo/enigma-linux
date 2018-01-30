@@ -20,7 +20,7 @@
 #include <linux/mm.h> /* ioremap */
 #include <linux/gfp.h> /* alloc_page */
 #include <asm/page.h>
-#include <linux/highmem.h>
+#include <linux/highmem.h> /* kmap_atomic */
 
 #include <ofs/ofs_msg.h> /* struct ofs_msg */
 #include <ofs/ofs_util.h>  /* some utility functions */
@@ -233,6 +233,10 @@ static int __init ofs_init(void)
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
+	ofs_switch_begin(shm_pa, &ofs_res);
+	smp_mb();
+	msg = recv_ofs_msg(ofs_shm);
+	ofs_handle_msg(msg);
 	return 0;
 }
 
