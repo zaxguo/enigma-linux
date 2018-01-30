@@ -35,6 +35,7 @@
 #include <linux/iomap.h>
 #include <linux/namei.h>
 #include <linux/uio.h>
+#include <ofs/ofs_util.h>
 #include "ext2.h"
 #include "acl.h"
 #include "xattr.h"
@@ -886,7 +887,12 @@ ext2_write_begin(struct file *file, struct address_space *mapping,
 		struct page **pagep, void **fsdata)
 {
 	int ret;
+#if 0
+	unsigned ofs_flags = flags;
+	ofs_flags |= AOP_FLAG_OFS;
+#endif
 
+	ofs_tag_address_space(mapping);
 	ret = block_write_begin(mapping, pos, len, flags, pagep,
 				ext2_get_block);
 	if (ret < 0)

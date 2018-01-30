@@ -26,6 +26,7 @@ enum mapping_flags {
 	AS_EXITING	= 4, 	/* final truncate in progress */
 	/* writeback related tags are not used */
 	AS_NO_WRITEBACK_TAGS = 5,
+	AS_OFS				 = 6, /* This address_space is used by OFS */
 };
 
 static inline void mapping_set_error(struct address_space *mapping, int error)

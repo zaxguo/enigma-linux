@@ -36,6 +36,7 @@
 #include <linux/cleancache.h>
 #include <linux/rmap.h>
 #include "internal.h"
+#include <ofs/ofs_util.h> /* OFS header */
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
@@ -1237,6 +1238,11 @@ no_page:
 		if (!page)
 			return NULL;
 
+		/* we allocate a secure page correspondingly */
+		if (is_ofs_address_space(mapping)) {
+			ofs_pg_request(offset, 0x1);
+		}
+
 		if (WARN_ON_ONCE(!(fgp_flags & FGP_LOCK)))
 			fgp_flags |= FGP_LOCK;
 
@@ -1247,6 +1253,10 @@ no_page:
 		err = add_to_page_cache_lru(page, mapping, offset,
 				gfp_mask & GFP_RECLAIM_MASK);
 		if (unlikely(err)) {
+			/* We don't want to goto repeat */
+			if (is_ofs_address_space(mapping)) {
+				WARN_ON(1);
+			}
 			put_page(page);
 			page = NULL;
 			if (err == -EEXIST)
@@ -2673,6 +2683,7 @@ struct page *grab_cache_page_write_begin(struct address_space *mapping,
 
 	if (flags & AOP_FLAG_NOFS)
 		fgp_flags |= FGP_NOFS;
+
 
 	page = pagecache_get_page(mapping, index, fgp_flags,
 			mapping_gfp_mask(mapping));

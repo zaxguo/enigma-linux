@@ -18,7 +18,9 @@
 #include <linux/fs.h>
 #include <linux/unistd.h>
 #include <linux/mm.h> /* ioremap */
+#include <linux/gfp.h> /* alloc_page */
 #include <asm/page.h>
+#include <linux/highmem.h>
 
 #include <ofs/ofs_msg.h> /* struct ofs_msg */
 #include <ofs/ofs_util.h>  /* some utility functions */
@@ -170,16 +172,67 @@ static int ofs_bench(void) {
 	return rc;
 }
 
+static void test_page(void)  {
+	struct page *page;
+	int dump_size = 0x2;
+	int i; 
+	page = alloc_page(GFP_KERNEL);
+	if (page) {
+		void *addr = page_address(page);
+		for(i = 0;  i < dump_size; i++) {
+			printk("[%02x] ", *(uint8_t *)(addr + i));
+		}
+		printk("\n");
+		clear_page(addr);
+		for(i = 0;  i < dump_size; i++) {
+			printk("[%02x] ", *(uint8_t *)(addr + i));
+		}
+		printk("\n");
+		printk("page @ va [%p], data page @ va [%p]\n", (void *)page, addr);
+		addr = kmap_atomic(page);
+		printk("page @ va [%p]\n", addr);
+		kunmap_atomic(addr);
+		printk("page highmem = %d\n", PageHighMem(page) ? 1 : 0);
+	}
+
+}
+
 static int __init ofs_init(void)
 {
+	struct tee_context *ctx;
 	int rc;
+	phys_addr_t shm_pa;
+	struct ofs_msg *msg;
+	int is_first;
+	int op;
+
+	/* Init */
+	is_first = 1;
+	op = 0;
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	if (!ctx) {
+		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);
+	}
+	ctx->teedev = ofs_tee;
+	INIT_LIST_HEAD(&ctx->list_shm);
+
+	/* allocate shm */
+	ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+	if (IS_ERR(ofs_shm)) {
+		return PTR_ERR(ofs_shm);
+	}
+	printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
+	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
+	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
 	if (!ofs_tee) {
 		printk(KERN_ERR"lwg:%s:cannot find tee class!\n",__func__);
 		return 1;
 	}
+//	test_page();
 	printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
-	printk(KERN_INFO"lwg:%s:ofs_tee@PA %16llx, ofs_tee@VA %p, ofs_tee@VA %p\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
-	rc = ofs_bench();  /* kickstart */
+	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
+//	ofs_pg_request(0x0, 1);
+//	rc = ofs_bench();  /* kickstart */
 	return 0;
 }
 

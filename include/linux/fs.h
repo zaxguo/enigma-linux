@@ -307,6 +307,7 @@ enum positive_aop_returns {
 #define AOP_FLAG_NOFS			0x0004 /* used by filesystem to direct
 						* helper code (eg buffer layer)
 						* to clear GFP_FS from alloc */
+#define AOP_FLAG_OFS			0x0008
 
 /*
  * oh the beauties of C type declarations.

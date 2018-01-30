@@ -13,9 +13,21 @@
 /* OFS msg sending */
 #include <ofs/ofs_msg.h>
 #include <ofs/ofs_opcode.h>
+#include <linux/pagemap.h>
 
 extern struct tee_shm *ofs_shm;
 extern struct arm_smccc_res ofs_res;
+
+static inline int is_ofs_address_space(struct address_space *mapping) {
+	if (mapping) {
+		return test_bit(AS_OFS, &mapping->flags);
+	}
+	return !!mapping;
+}
+
+static inline void ofs_tag_address_space(struct address_space *mapping) {
+	set_bit(AS_OFS, &mapping->flags);
+}
 
 static inline void ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
@@ -63,7 +75,7 @@ static inline void ofs_switch_resume(struct arm_smccc_res *res) {
 
 static inline void ofs_switch_begin(phys_addr_t shm_pa, struct arm_smccc_res *res) {
 #ifdef OFS_DEBUG
-	printk("lwg:%s:kick start the benchmark, used for first-time entry\n", __func__);
+	printk("lwg:%s:shm@[%08lx], enter secure world\n", __func__, (unsigned long)shm_pa);
 #endif
 	ofs_switch(OPTEE_SMC_CALL_WITH_ARG, shm_pa, res);
 }
@@ -91,6 +103,7 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	ofs_prep_pg_request(msg, index, flag);
 //	ofs_switch_resume(&ofs_res);
+	printk("lwg:%s:%d:allocate a secure page for [0x%lx] in secure world\n", __func__, __LINE__, index);
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
