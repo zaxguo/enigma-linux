@@ -3,7 +3,11 @@
 
 #include <linux/syscalls.h>
 
+
+/* note the function is defined in optee/ofs/ofs_mkdir.c */
 extern int ofs_mkdir(const char *, int);
+extern int ofs_open(const char *, int);
+extern int ofs_read(int, char *, int);
 
 
 

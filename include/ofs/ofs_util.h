@@ -14,9 +14,14 @@
 #include <ofs/ofs_msg.h>
 #include <ofs/ofs_opcode.h>
 #include <linux/pagemap.h>
+/* fs-related struct, utils */
+#include <linux/fs.h>
+
+#define OFS_FS "ext2"
 
 extern struct tee_shm *ofs_shm;
 extern struct arm_smccc_res ofs_res;
+
 
 static inline int is_ofs_address_space(struct address_space *mapping) {
 	if (mapping) {
@@ -24,6 +29,36 @@ static inline int is_ofs_address_space(struct address_space *mapping) {
 	}
 	return !!mapping;
 }
+
+static inline int is_ofs_file(struct file *filp) {
+	BUG_ON(IS_ERR(filp));
+	return is_ofs_address_space(filp->f_mapping);
+}
+
+static inline void set_ofs_address_space(struct address_space *mapping) {
+	BUG_ON(IS_ERR(mapping));
+	return set_bit(AS_OFS, &mapping->flags);
+}
+
+static inline int set_ofs_file(struct file *filp) {
+	BUG_ON(IS_ERR(filp));
+	struct inode *ino;
+	struct super_block *sb;
+	ino = filp->f_inode;
+	sb = ino->i_sb;
+	if (!is_ofs_file(filp)) {
+		if (!strcmp(sb->s_type->name, OFS_FS)) {
+			printk("lwg:%s:%d:setting up ofs file ino = %ld\n", 
+					__func__, 
+					__LINE__,
+					ino->i_ino);
+			set_ofs_address_space(filp->f_mapping);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 
 static inline void ofs_tag_address_space(struct address_space *mapping) {
 	set_bit(AS_OFS, &mapping->flags);

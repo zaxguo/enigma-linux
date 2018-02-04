@@ -31,6 +31,7 @@
 #include <linux/ima.h>
 #include <linux/dnotify.h>
 #include <linux/compat.h>
+#include <ofs/ofs_util.h>
 
 #include "internal.h"
 
@@ -1057,9 +1058,12 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		} else {
 			fsnotify_open(f);
 			fd_install(fd, f);
+			set_ofs_file(f);
 		}
 	}
 	putname(tmp);
+
+
 	return fd;
 }
 

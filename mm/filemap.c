@@ -1694,6 +1694,18 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	unsigned long offset;      /* offset into pagecache page */
 	unsigned int prev_offset;
 	int error = 0;
+	int is_ofs = 0;
+
+	if(is_ofs_file(filp)) {
+		is_ofs = 1;
+		printk("lwg:%s:%d:caught an OFS file, ino = %lu\n", 
+				__func__,
+				__LINE__,
+				inode->i_ino);
+
+	}
+
+
 
 	if (unlikely(*ppos >= inode->i_sb->s_maxbytes))
 		return -EINVAL;
@@ -1803,6 +1815,15 @@ page_ok:
 		 * now we can copy it to user space...
 		 */
 
+#if 1
+		if (is_ofs)  {
+			/* lwg: we examine the page to be copied */
+			char *addr;
+			addr = kmap_atomic(page);
+			printk("lwg:%s:%d:XXX:%s\n", __func__, __LINE__, addr);
+			kunmap_atomic(addr);
+		}
+#endif
 		ret = copy_page_to_iter(page, offset, nr, iter);
 		offset += ret;
 		index += offset >> PAGE_SHIFT;

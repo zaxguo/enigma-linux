@@ -15,7 +15,7 @@
 #include <linux/bitops.h>
 #include <asm/io.h>  // virt_to_phys
 #include <linux/syscalls.h> // syscall
-#include <linux/fs.h>
+#include <linux/fs.h> /* filp_open */
 #include <linux/unistd.h>
 #include <linux/mm.h> /* ioremap */
 #include <linux/gfp.h> /* alloc_page */
@@ -172,6 +172,21 @@ static int ofs_bench(void) {
 	return rc;
 }
 
+static void read_file(void) {
+	struct file *f;
+	struct inode *ino;
+	char buf[128];	
+	f = filp_open("/mnt/ext2/ofs", O_RDONLY, 0);
+	if (IS_ERR(f)) {
+		printk("lwg:%s:cannot read file\n", __func__);
+		return;
+	}
+	ino = f->f_inode;
+
+	printk("lwg:%s:%d:%lu:%s\n", __func__, __LINE__, f->f_inode->i_ino, ino->i_sb->s_type->name);
+	return;
+}
+
 static void test_page(void)  {
 	struct page *page;
 	int dump_size = 0x2;
@@ -233,6 +248,7 @@ static int __init ofs_init(void)
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
+	read_file();
 	ofs_switch_begin(shm_pa, &ofs_res);
 	smp_mb();
 	msg = recv_ofs_msg(ofs_shm);
