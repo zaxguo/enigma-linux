@@ -176,7 +176,7 @@ static int ofs_bench(void) {
 static void read_file(void) {
 	struct file *f;
 	struct inode *ino;
-	char buf[128];	
+//	char buf[128];	
 	f = filp_open("/mnt/ext2/ofs", O_RDONLY, 0);
 	if (IS_ERR(f)) {
 		printk("lwg:%s:cannot read file\n", __func__);
@@ -214,18 +214,31 @@ static void test_page(void)  {
 }
 
 
-static ssize_t ofs_debug(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+/* More convenient to control debugging and kickstart the benchmark
+ * op =
+ * 1: kickstart benchmark
+ * other: debugging different facilities */
+static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
 	int op = 0;
 	char ops[128];		
+	struct ofs_msg *msg;
 	if (copy_from_user(ops, buf, count)) {
 		return -EFAULT;
 	}
 	sscanf(ops, "%d\n", &op);
+	printk("lwg:%s:%d:op = %d\n", __func__, __LINE__, op);
 	switch (op) {
 		case 1:
-			printk("lwg:%s:%d:op = %d\n", __func__, __LINE__, op);
+			printk("lwg:%s:%d:kick start benchmark\n", __func__, __LINE__);
+			ofs_switch(&ofs_res);
 			break;
 		case 2:
+//			read_file();
+			ofs_switch(&ofs_res);
+			smp_mb();
+			msg = recv_ofs_msg(ofs_shm);
+			ofs_handle_msg(msg);
+			break;
 		default:
 			break;
 	}
@@ -241,9 +254,9 @@ static int ofs_open(struct inode *inode, struct file *filp) {
 	return single_open(filp, ofs_show, NULL);
 }
 
-static const struct file_operations ofs_debug_ops = {
+static const struct file_operations ofs_procfs_ops = {
 	.open  = ofs_open,
-	.write = ofs_debug,
+	.write = ofs_write,
 	.read = seq_read,
 };
 
@@ -254,7 +267,7 @@ static int remove_ofs_procfs(void) {
 
 static int init_ofs_procfs(void) {
 	struct proc_dir_entry *ofs;
-	ofs = proc_create("ofs", 0444, NULL, &ofs_debug_ops);
+	ofs = proc_create("ofs", 0444, NULL, &ofs_procfs_ops);
 	if (!ofs)
 		return -ENOMEM;
 	return 1;
@@ -265,14 +278,9 @@ static int __init ofs_init(void)
 	struct tee_context *ctx;
 	int rc;
 	phys_addr_t shm_pa;
-	struct ofs_msg *msg;
-	int is_first;
-	int op;
 
 	/* Init */
 	init_ofs_procfs();
-	is_first = 1;
-	op = 0;
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
 		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);
@@ -292,18 +300,11 @@ static int __init ofs_init(void)
 		printk(KERN_ERR"lwg:%s:cannot find tee class!\n",__func__);
 		return 1;
 	}
-
-
 //	test_page();
-	printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
+	printk(KERN_INFO"lwg:%s:OFS init sucess:----------------------------------\n",__func__);
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
-	read_file();
-	ofs_switch_begin(shm_pa, &ofs_res);
-	smp_mb();
-	msg = recv_ofs_msg(ofs_shm);
-	ofs_handle_msg(msg);
 	return 0;
 }
 
