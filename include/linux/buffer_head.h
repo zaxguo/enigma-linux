@@ -313,14 +313,16 @@ static inline void bforget(struct buffer_head *bh)
 static inline struct buffer_head *
 sb_bread(struct super_block *sb, sector_t block)
 {
-#if 0
+#if 1
 	struct ofs_msg *msg;
 	if (is_ofs(sb)) {
 		printk("lwg:%s:OFS wants to read blocks 0x%lx\n", __func__, block);
 		msg = recv_ofs_msg(ofs_shm);
 		ofs_blk_read(msg, block);
 		/* TODO: move switch inside blk_read? */
-		ofs_switch_resume(&ofs_res);					
+//		ofs_switch_resume(&ofs_res);					 
+		/* blk req is a function call should not resume */
+		ofs_switch(&ofs_res);					
 	}
 #endif
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);

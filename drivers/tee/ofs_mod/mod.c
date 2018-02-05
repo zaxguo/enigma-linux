@@ -16,6 +16,7 @@
 #include <asm/io.h>  // virt_to_phys
 #include <linux/syscalls.h> // syscall
 #include <linux/fs.h> /* filp_open */
+#include <linux/proc_fs.h> /* userspace interaction */
 #include <linux/unistd.h>
 #include <linux/mm.h> /* ioremap */
 #include <linux/gfp.h> /* alloc_page */
@@ -212,6 +213,53 @@ static void test_page(void)  {
 
 }
 
+
+static ssize_t ofs_debug(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+	int op = 0;
+	char ops[128];		
+	if (copy_from_user(ops, buf, count)) {
+		return -EFAULT;
+	}
+	sscanf(ops, "%d\n", &op);
+	switch (op) {
+		case 1:
+			printk("lwg:%s:%d:op = %d\n", __func__, __LINE__, op);
+			break;
+		case 2:
+		default:
+			break;
+	}
+	return count;
+}
+
+static int ofs_show(struct seq_file *file, void *v) {
+	printk("lwg:%s:%d:opened\n", __func__, __LINE__);
+	return 0;
+}
+
+static int ofs_open(struct inode *inode, struct file *filp) {
+	return single_open(filp, ofs_show, NULL);
+}
+
+static const struct file_operations ofs_debug_ops = {
+	.open  = ofs_open,
+	.write = ofs_debug,
+	.read = seq_read,
+};
+
+
+static int remove_ofs_procfs(void) {
+	return 1;
+}
+
+static int init_ofs_procfs(void) {
+	struct proc_dir_entry *ofs;
+	ofs = proc_create("ofs", 0444, NULL, &ofs_debug_ops);
+	if (!ofs)
+		return -ENOMEM;
+	return 1;
+}
+
 static int __init ofs_init(void)
 {
 	struct tee_context *ctx;
@@ -222,6 +270,7 @@ static int __init ofs_init(void)
 	int op;
 
 	/* Init */
+	init_ofs_procfs();
 	is_first = 1;
 	op = 0;
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
@@ -243,6 +292,8 @@ static int __init ofs_init(void)
 		printk(KERN_ERR"lwg:%s:cannot find tee class!\n",__func__);
 		return 1;
 	}
+
+
 //	test_page();
 	printk(KERN_INFO"lwg:%s:sucess, find tee device\n",__func__);
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
@@ -264,3 +315,4 @@ static void __exit ofs_cleanup(void)
 
 module_init(ofs_init);
 module_exit(ofs_cleanup);
+	

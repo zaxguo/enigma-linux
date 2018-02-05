@@ -64,7 +64,7 @@ static inline void ofs_tag_address_space(struct address_space *mapping) {
 	set_bit(AS_OFS, &mapping->flags);
 }
 
-static inline void ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
+static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
 #ifdef OFS_DEBUG
 	printk("lwg:%s:[%08x]:[%08x]\n", __func__, callid, (unsigned int)shm_pa);
@@ -105,15 +105,25 @@ static inline void ofs_switch_resume(struct arm_smccc_res *res) {
 #ifdef OFS_DEBUG
 	printk("lwg:%s:rpc done, resume to secure world\n", __func__);
 #endif
-	ofs_switch(OPTEE_SMC_CALL_RETURN_FROM_RPC, 0, res);
+	raw_ofs_switch(OPTEE_SMC_CALL_RETURN_FROM_RPC, 0, res);
 }
 
 static inline void ofs_switch_begin(phys_addr_t shm_pa, struct arm_smccc_res *res) {
 #ifdef OFS_DEBUG
 	printk("lwg:%s:shm@[%08lx], enter secure world\n", __func__, (unsigned long)shm_pa);
 #endif
-	ofs_switch(OPTEE_SMC_CALL_WITH_ARG, shm_pa, res);
+	raw_ofs_switch(OPTEE_SMC_CALL_WITH_ARG, shm_pa, res);
 }
+
+static inline void ofs_switch(struct arm_smccc_res *res) {
+	BUG_ON(IS_ERR(ofs_shm));
+#ifdef OFS_DEBUG
+	printk("lwg:%s:shm@[%08lx], enter secure world\n", __func__, (unsigned long)ofs_shm->paddr);
+#endif
+	raw_ofs_switch(OPTEE_SMC_CALL_WITH_ARG, ofs_shm->paddr, res);
+}
+
+
 
 static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 	return (struct ofs_msg *)shm->kaddr;
