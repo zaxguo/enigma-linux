@@ -34,6 +34,11 @@
 #include <linux/fsnotify.h>
 #include <linux/lockdep.h>
 #include <linux/user_namespace.h>
+/* sb_bread */
+#include <linux/buffer_head.h>
+#include "ext2/ext2.h"
+/* dma_alloc_coherent */
+#include <linux/dma-mapping.h>
 #include "internal.h"
 
 
@@ -1017,6 +1022,46 @@ static int test_bdev_super(struct super_block *s, void *data)
 	return (void *)s->s_bdev == data;
 }
 
+static int ofs_mount(struct super_block *s) {
+	sector_t blockcnt;
+	void *vaddr, *head;
+	struct ext2_sb_info * sbi;
+	struct ext2_super_block * es;
+	unsigned long fs_size;
+	struct buffer_head *bh;
+	unsigned long blocksize, offset;
+	int i;
+	sbi = (struct ext2_sb_info *)s->s_fs_info;
+	es = sbi->s_es;
+	BUG_ON(IS_ERR(es));
+	blocksize = s->s_blocksize;
+	blockcnt = es->s_blocks_count;
+	fs_size = blocksize * blockcnt;
+	vaddr = vmalloc(fs_size);
+	head = vaddr;
+	printk("lwg:%s:%d:blocksize = [%08lx], blockcnt = [%08lx]\n", __func__, __LINE__, blocksize, blockcnt);
+	if (!vaddr) {
+		printk("lwg:%s:%d:trying to alloc [%08lx] bytes failed\n", __func__, __LINE__, fs_size);
+		return -ENOMEM;
+	}
+	printk("lwg:%s:%d:mem alloc success [%08lx] bytes @ [%p], now starts to copy disk img\n", __func__, __LINE__, fs_size, vaddr);
+	for (i = 0; i < blockcnt; i++) {
+		bh = sb_bread(s, i); 
+		memcpy(vaddr, bh->b_data, blocksize);
+		vaddr += blocksize;
+		BUG_ON(i > 0x1000);
+	}
+	printk("lwg:%s:%d:disk img cpy completed\n", __func__, __LINE__);
+
+	printk("lwg:%s:%d:dump first 8 bytes of block 2\n", __func__, __LINE__);
+	offset = 2 * blocksize;
+	for (i = 0; i < 8; i++) {
+		printk("[%02x] ", *(uint8_t *)(head + offset + i));
+	}
+	
+	return 0;
+}
+
 struct dentry *mount_bdev(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data,
 	int (*fill_super)(struct super_block *, void *, int))
@@ -1025,6 +1070,9 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 	struct super_block *s;
 	fmode_t mode = FMODE_READ | FMODE_EXCL;
 	int error = 0;
+	int is_ofs = 0;
+
+	BUG_ON(flags & MS_OFS);
 
 	if (!(flags & MS_RDONLY))
 		mode |= FMODE_WRITE;
@@ -1079,6 +1127,18 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 
 		s->s_flags |= MS_ACTIVE;
 		bdev->bd_super = s;
+	}
+
+	if (!strcmp(fs_type->name, "ext2")) {
+		is_ofs = 1;
+		printk("lwg:%s:%d:mounting OFS: %s\n", __func__, __LINE__, fs_type->name);
+		s->s_flags |= MS_OFS;
+//		BUG_ON(s->s_flags & MS_OFS);
+	}
+	
+	/* OFS mount, copy disk img to mem */
+	if (is_ofs) {
+		ofs_mount(s);
 	}
 
 	return dget(s->s_root);

@@ -231,6 +231,12 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 		case 1:
 			printk("lwg:%s:%d:kick start benchmark\n", __func__, __LINE__);
 			ofs_switch(&ofs_res);
+
+			smp_mb();
+			msg = recv_ofs_msg(ofs_shm);
+			ofs_handle_msg(msg);
+			ofs_switch_resume(&ofs_res);
+
 			break;
 		case 2:
 //			read_file();

@@ -1151,9 +1151,13 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	ext2_write_super(sb);
 
 
+#if 0
+	/* update 02/14: we will set the bug AFTER the mount is done! */
 	/* Set the OFS flag here so that any switch 
 	 * won't happen until init is done */
 	sb->s_flags |= MS_OFS;	
+	printk("lwg:%s:%d:EXT2 has set OFS flag\n", __func__, __LINE__);
+#endif 
 
 	return 0;
 

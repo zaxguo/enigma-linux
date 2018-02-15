@@ -274,6 +274,7 @@ void buffer_init(void);
  */
 
 static inline int is_ofs(struct super_block *sb) {
+	/* TODO: use set_bit API */
 	return (sb->s_flags & MS_OFS);
 }
 
@@ -316,7 +317,7 @@ sb_bread(struct super_block *sb, sector_t block)
 #if 1
 	struct ofs_msg *msg;
 	if (is_ofs(sb)) {
-		printk("lwg:%s:OFS wants to read blocks 0x%lx\n", __func__, block);
+		printk("lwg:%s:OFS wants to read blocks [0x%lx]\n", __func__, block);
 		msg = recv_ofs_msg(ofs_shm);
 		ofs_blk_read(msg, block);
 		/* TODO: move switch inside blk_read? */

@@ -41,9 +41,9 @@ static inline void set_ofs_address_space(struct address_space *mapping) {
 }
 
 static inline int set_ofs_file(struct file *filp) {
-	BUG_ON(IS_ERR(filp));
 	struct inode *ino;
 	struct super_block *sb;
+	BUG_ON(IS_ERR(filp));
 	ino = filp->f_inode;
 	sb = ino->i_sb;
 	if (!is_ofs_file(filp)) {
@@ -61,6 +61,7 @@ static inline int set_ofs_file(struct file *filp) {
 
 
 static inline void ofs_tag_address_space(struct address_space *mapping) {
+	printk("lwg:%s:%d:....\n", __func__, __LINE__);
 	set_bit(AS_OFS, &mapping->flags);
 }
 
@@ -143,11 +144,10 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 	phys_addr_t shm_pa;
 	int rc;
 	msg = recv_ofs_msg(ofs_shm);
-	/* This is only to make sure the shm is allocated before sending any messages */
+	/* Make sure the shm is allocated before sending any messages */
 	WARN_ON(!msg); 	
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	ofs_prep_pg_request(msg, index, flag);
-//	ofs_switch_resume(&ofs_res);
 	printk("lwg:%s:%d:allocate a secure page for [0x%lx] in secure world\n", __func__, __LINE__, index);
 	ofs_switch_begin(shm_pa, &ofs_res);
 }

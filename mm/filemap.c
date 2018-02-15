@@ -1238,7 +1238,7 @@ no_page:
 		if (!page)
 			return NULL;
 
-		/* we allocate a secure page correspondingly */
+		/* lwg: we allocate a secure page correspondingly */
 		if (is_ofs_address_space(mapping)) {
 			ofs_pg_request(offset, 0x1);
 		}
@@ -1253,7 +1253,7 @@ no_page:
 		err = add_to_page_cache_lru(page, mapping, offset,
 				gfp_mask & GFP_RECLAIM_MASK);
 		if (unlikely(err)) {
-			/* We don't want to goto repeat */
+			/* lwg: We don't want to goto repeat */
 			if (is_ofs_address_space(mapping)) {
 				WARN_ON(1);
 			}
@@ -1698,11 +1698,12 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 
 	if(is_ofs_file(filp)) {
 		is_ofs = 1;
+#if 1
 		printk("lwg:%s:%d:caught an OFS file, ino = %lu\n", 
 				__func__,
 				__LINE__,
 				inode->i_ino);
-
+#endif
 	}
 
 
@@ -1815,7 +1816,7 @@ page_ok:
 		 * now we can copy it to user space...
 		 */
 
-#if 1
+#if 0
 		if (is_ofs)  {
 			/* lwg: we examine the page to be copied */
 			char *addr;
