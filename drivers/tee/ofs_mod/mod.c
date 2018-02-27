@@ -27,6 +27,7 @@
 #include <ofs/ofs_util.h>  /* some utility functions */
 #include <ofs/ofs_opcode.h>
 #include "ofs_handler.h"
+#include <linux/dma-mapping.h>
 
 
 MODULE_LICENSE("GPL");
@@ -214,6 +215,34 @@ static void test_page(void)  {
 }
 
 
+static void test_cma(void) {
+	void *vaddr;
+	struct device *dev;
+	dma_addr_t dma_addr;
+	uint8_t *byte;
+	unsigned long size = 1024 * 4096;
+	int i = 0;
+	dev = &(ofs_tee->dev);
+	vaddr = dma_alloc_coherent(dev, size, &dma_addr, GFP_KERNEL);
+	byte = (uint8_t *)vaddr;
+	if (!vaddr) {
+		printk("XXXXXXX failed to alloc %08lx bytes\n", size);
+		return;
+	}
+	printk("success cma alloc @ [%p]\n", vaddr);
+	printk("dump bytes...\n");
+	for(i = size - 8; i < size; i++) {
+		printk("[%02x] ", *(byte + i));
+	}
+	
+	return ;
+}
+
+static void test(void) {
+	return  test_cma();
+}
+
+
 /* More convenient to control debugging and kickstart the benchmark
  * op =
  * 1: kickstart benchmark
@@ -245,6 +274,9 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 			msg = recv_ofs_msg(ofs_shm);
 			ofs_handle_msg(msg);
 			break;
+		case 3:
+			/* test code zone */
+			test();
 		default:
 			break;
 	}

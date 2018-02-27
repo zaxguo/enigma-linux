@@ -132,13 +132,33 @@ static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 
 
 
-static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, int flag) {
+static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, phys_addr_t from, int request, int flag) {
 	msg->op = OFS_PG_REQUEST;
 	msg->msg.page_request.flag  = flag;
 	msg->msg.page_request.index = index;
-	msg->msg.page_request.request = 0;
+	msg->msg.page_request.request = request;
+	msg->msg.page_request.pa = from;
 }
 
+static inline void ofs_prep_pg_alloc_request(struct ofs_msg *msg, pgoff_t index, int flag) {
+	return ofs_prep_pg_request(msg, index, 0, 1, flag);
+}
+
+
+static inline void ofs_pg_copy_request(pgoff_t index, phys_addr_t from) {
+	struct ofs_msg *msg;
+	phys_addr_t shm_pa;
+	int rc;
+	msg = recv_ofs_msg(ofs_shm);
+	/* Make sure the shm is allocated before sending any messages */
+	WARN_ON(!msg); 	
+	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
+	ofs_prep_pg_request(msg, index, from, 0, 0);
+	printk("lwg:%s:%d:copy a page @ [0x%llx] in normal world to secure world\n", __func__, __LINE__, from);
+	ofs_switch_begin(shm_pa, &ofs_res);
+}
+
+/* TODO:refactor, this is really just page alloc request */
 static inline void ofs_pg_request(pgoff_t index, int flag) {
 	struct ofs_msg *msg;
 	phys_addr_t shm_pa;
@@ -147,7 +167,8 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 	/* Make sure the shm is allocated before sending any messages */
 	WARN_ON(!msg); 	
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
-	ofs_prep_pg_request(msg, index, flag);
+//	ofs_prep_pg_request(msg, index, 0, flag);
+	ofs_prep_pg_alloc_request(msg, index, flag);
 	printk("lwg:%s:%d:allocate a secure page for [0x%lx] in secure world\n", __func__, __LINE__, index);
 	ofs_switch_begin(shm_pa, &ofs_res);
 }

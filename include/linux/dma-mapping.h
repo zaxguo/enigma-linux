@@ -456,6 +456,7 @@ static inline void *dma_alloc_attrs(struct device *dev, size_t size,
 
 	BUG_ON(!ops);
 
+//	printk("lwg:%s:%d:entered\n", __func__, __LINE__);
 	if (dma_alloc_from_coherent(dev, size, dma_handle, &cpu_addr))
 		return cpu_addr;
 

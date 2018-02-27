@@ -161,6 +161,7 @@ EXPORT_SYMBOL(dma_mark_declared_memory_occupied);
 int dma_alloc_from_coherent(struct device *dev, ssize_t size,
 				       dma_addr_t *dma_handle, void **ret)
 {
+	printk("lwg:%s:%d:entered\n", __func__, __LINE__);
 	struct dma_coherent_mem *mem;
 	int order = get_order(size);
 	unsigned long flags;

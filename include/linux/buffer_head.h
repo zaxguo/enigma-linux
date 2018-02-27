@@ -316,6 +316,7 @@ sb_bread(struct super_block *sb, sector_t block)
 {
 #if 1
 	struct ofs_msg *msg;
+	/* This is after the OFS mount is done, meaning the disk img is in-mem */
 	if (is_ofs(sb)) {
 		printk("lwg:%s:OFS wants to read blocks [0x%lx]\n", __func__, block);
 		msg = recv_ofs_msg(ofs_shm);

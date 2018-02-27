@@ -40,7 +40,8 @@
 /* dma_alloc_coherent */
 #include <linux/dma-mapping.h>
 #include "internal.h"
-
+#include <linux/tee_drv.h>
+//#include "../drivers/tee/tee_private.h"
 
 static LIST_HEAD(super_blocks);
 static DEFINE_SPINLOCK(sb_lock);
@@ -1022,6 +1023,17 @@ static int test_bdev_super(struct super_block *s, void *data)
 	return (void *)s->s_bdev == data;
 }
 
+
+extern struct tee_device *ofs_tee;
+
+static struct tee_shm *alloc_mount_mem(struct tee_context *ctx, int size) {
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	WARN_ON(!ctx);
+	ctx->teedev = ofs_tee;
+	INIT_LIST_HEAD(&ctx->list_shm);
+	return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+}
+
 static int ofs_mount(struct super_block *s) {
 	sector_t blockcnt;
 	void *vaddr, *head;
@@ -1030,27 +1042,53 @@ static int ofs_mount(struct super_block *s) {
 	unsigned long fs_size;
 	struct buffer_head *bh;
 	unsigned long blocksize, offset;
-	int i;
+	int i, j, shm_size, npages, blocks_per_page;
+	struct tee_context *ctx;
+	struct tee_shm *disk_mem;
+
 	sbi = (struct ext2_sb_info *)s->s_fs_info;
 	es = sbi->s_es;
 	BUG_ON(IS_ERR(es));
 	blocksize = s->s_blocksize;
 	blockcnt = es->s_blocks_count;
-	fs_size = blocksize * blockcnt;
-	vaddr = vmalloc(fs_size);
-	head = vaddr;
-	printk("lwg:%s:%d:blocksize = [%08lx], blockcnt = [%08lx]\n", __func__, __LINE__, blocksize, blockcnt);
-	if (!vaddr) {
+	fs_size = blocksize * blockcnt; 
+	shm_size = PAGE_SIZE;
+	npages =  fs_size >> PAGE_SHIFT;
+	blocks_per_page = PAGE_SIZE / blocksize ;
+	j = 0;
+
+	/* allocate */
+	disk_mem = alloc_mount_mem(ctx, shm_size);
+	WARN_ON(!disk_mem);
+	if (!disk_mem) {
 		printk("lwg:%s:%d:trying to alloc [%08lx] bytes failed\n", __func__, __LINE__, fs_size);
 		return -ENOMEM;
 	}
-	printk("lwg:%s:%d:mem alloc success [%08lx] bytes @ [%p], now starts to copy disk img\n", __func__, __LINE__, fs_size, vaddr);
+	head = disk_mem->kaddr;
+	vaddr = disk_mem->kaddr;
+	printk("lwg:%s:%d:blocksize = [%08lx], blockcnt = [%08lx]\n", __func__, __LINE__, blocksize, blockcnt);
+	printk("lwg:%s:%d:shm alloc success [%d] bytes @ [%p], now starts to copy disk img\n", __func__, __LINE__, shm_size, vaddr);
+	/* TODO: change the interface */
+
+	for (i = 0; i < npages; i++) {
+		vaddr = disk_mem->kaddr;
+		printk("lwg:%s:%d:copying [%d] blk\n", __func__, __LINE__, i * blocks_per_page);
+		for (j = i * blocks_per_page; j < (i + 1) * blocks_per_page; j++) {
+			bh = sb_bread(s, j); 
+			memcpy(vaddr, bh->b_data, blocksize);
+			vaddr += blocksize;
+			smp_mb();
+		}
+		ofs_pg_copy_request(0, disk_mem->paddr); 
+	}
+#if 0
 	for (i = 0; i < blockcnt; i++) {
 		bh = sb_bread(s, i); 
 		memcpy(vaddr, bh->b_data, blocksize);
 		vaddr += blocksize;
-		BUG_ON(i > 0x1000);
+		smp_mb();
 	}
+#endif
 	printk("lwg:%s:%d:disk img cpy completed\n", __func__, __LINE__);
 
 	printk("lwg:%s:%d:dump first 8 bytes of block 2\n", __func__, __LINE__);
@@ -1132,13 +1170,13 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 	if (!strcmp(fs_type->name, "ext2")) {
 		is_ofs = 1;
 		printk("lwg:%s:%d:mounting OFS: %s\n", __func__, __LINE__, fs_type->name);
-		s->s_flags |= MS_OFS;
-//		BUG_ON(s->s_flags & MS_OFS);
+		BUG_ON(s->s_flags & MS_OFS);
 	}
 	
 	/* OFS mount, copy disk img to mem */
 	if (is_ofs) {
 		ofs_mount(s);
+		s->s_flags |= MS_OFS;
 	}
 
 	return dget(s->s_root);

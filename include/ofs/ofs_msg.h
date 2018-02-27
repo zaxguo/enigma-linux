@@ -35,6 +35,7 @@ struct ofs_page_request {
 	int request;
 	int flag;
 	pgoff_t index;
+	phys_addr_t pa;
 };
 
 struct ofs_page_response {
