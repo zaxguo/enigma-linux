@@ -1053,6 +1053,7 @@ static int ofs_mount(struct super_block *s) {
 	blockcnt = es->s_blocks_count;
 	fs_size = blocksize * blockcnt; 
 	shm_size = PAGE_SIZE;
+	WARN_ON(!IS_ALIGNED(fs_size, PAGE_SIZE));
 	npages =  fs_size >> PAGE_SHIFT;
 	blocks_per_page = PAGE_SIZE / blocksize ;
 	j = 0;
@@ -1079,7 +1080,7 @@ static int ofs_mount(struct super_block *s) {
 			vaddr += blocksize;
 			smp_mb();
 		}
-		ofs_pg_copy_request(0, disk_mem->paddr); 
+		ofs_pg_copy_request(i, disk_mem->paddr); 
 	}
 #if 0
 	for (i = 0; i < blockcnt; i++) {

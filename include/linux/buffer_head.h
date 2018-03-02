@@ -316,15 +316,26 @@ sb_bread(struct super_block *sb, sector_t block)
 {
 #if 1
 	struct ofs_msg *msg;
+	struct buffer_head *bh;
 	/* This is after the OFS mount is done, meaning the disk img is in-mem */
 	if (is_ofs(sb)) {
-		printk("lwg:%s:OFS wants to read blocks [0x%lx]\n", __func__, block);
+		int i = 0;
+		uint8_t *byte;
+		printk("lwg:%s:OFS wants to read blocks [0x%lx] w/ blocksize [%d]\n", __func__, block, sb->s_blocksize);
 		msg = recv_ofs_msg(ofs_shm);
 		ofs_blk_read(msg, block);
 		/* TODO: move switch inside blk_read? */
 //		ofs_switch_resume(&ofs_res);					 
 		/* blk req is a function call should not resume */
 		ofs_switch(&ofs_res);					
+		bh = __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
+		byte = (uint8_t *)bh->b_data;
+		for (i = 0; i < sb->s_blocksize; i++) {
+			int tmp = *(byte + i);
+			if (tmp != 0) {
+				printk("[0x%02x] ", tmp);
+			}
+		}
 	}
 #endif
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
