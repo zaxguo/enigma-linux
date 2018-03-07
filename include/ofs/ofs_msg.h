@@ -27,7 +27,7 @@ struct ofs_fs_request {
 struct ofs_fs_response {
 	int rw;
 	unsigned long blocknr;
-	void *payload;
+	phys_addr_t pa;
 };
 
 

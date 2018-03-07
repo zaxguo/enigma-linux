@@ -41,6 +41,7 @@
 #include <linux/dma-mapping.h>
 #include "internal.h"
 #include <linux/tee_drv.h>
+#include <ofs/ofs_util.h>
 //#include "../drivers/tee/tee_private.h"
 
 static LIST_HEAD(super_blocks);
@@ -1024,16 +1025,6 @@ static int test_bdev_super(struct super_block *s, void *data)
 }
 
 
-extern struct tee_device *ofs_tee;
-
-static struct tee_shm *alloc_mount_mem(struct tee_context *ctx, int size) {
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
-	WARN_ON(!ctx);
-	ctx->teedev = ofs_tee;
-	INIT_LIST_HEAD(&ctx->list_shm);
-	return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
-}
-
 static int ofs_mount(struct super_block *s) {
 	sector_t blockcnt;
 	void *vaddr, *head;
@@ -1059,7 +1050,7 @@ static int ofs_mount(struct super_block *s) {
 	j = 0;
 
 	/* allocate */
-	disk_mem = alloc_mount_mem(ctx, shm_size);
+	disk_mem = alloc_ofs_shm(ctx, shm_size);
 	WARN_ON(!disk_mem);
 	if (!disk_mem) {
 		printk("lwg:%s:%d:trying to alloc [%08lx] bytes failed\n", __func__, __LINE__, fs_size);
@@ -1080,7 +1071,7 @@ static int ofs_mount(struct super_block *s) {
 			vaddr += blocksize;
 			smp_mb();
 		}
-		ofs_pg_copy_request(i, disk_mem->paddr); 
+		ofs_pg_copy_request(i, disk_mem->paddr, OFS_PG_COPY_TO_SEC); 
 	}
 #if 0
 	for (i = 0; i < blockcnt; i++) {
@@ -1091,12 +1082,8 @@ static int ofs_mount(struct super_block *s) {
 	}
 #endif
 	printk("lwg:%s:%d:disk img cpy completed\n", __func__, __LINE__);
-
-	printk("lwg:%s:%d:dump first 8 bytes of block 2\n", __func__, __LINE__);
-	offset = 2 * blocksize;
-	for (i = 0; i < 8; i++) {
-		printk("[%02x] ", *(uint8_t *)(head + offset + i));
-	}
+	/* free the mem used for copying page in/out */
+	tee_shm_free(disk_mem);
 	
 	return 0;
 }
@@ -1176,7 +1163,8 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 	
 	/* OFS mount, copy disk img to mem */
 	if (is_ofs) {
-		ofs_mount(s);
+		ofs_mount(s); 
+		/* this flag indicates init is done */
 		s->s_flags |= MS_OFS;
 	}
 

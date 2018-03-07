@@ -338,7 +338,6 @@ static int __init ofs_init(void)
 		printk(KERN_ERR"lwg:%s:cannot find tee class!\n",__func__);
 		return 1;
 	}
-//	test_page();
 	printk(KERN_INFO"lwg:%s:OFS init sucess:----------------------------------\n",__func__);
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);

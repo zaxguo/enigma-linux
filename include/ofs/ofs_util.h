@@ -16,10 +16,12 @@
 #include <linux/pagemap.h>
 /* fs-related struct, utils */
 #include <linux/fs.h>
+#include <linux/slab.h>
 
 #define OFS_FS "ext2"
 
 extern struct tee_shm *ofs_shm;
+extern struct tee_device *ofs_tee;
 extern struct arm_smccc_res ofs_res;
 
 
@@ -130,6 +132,13 @@ static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 	return (struct ofs_msg *)shm->kaddr;
 }
 
+static inline struct tee_shm *alloc_ofs_shm(struct tee_context *ctx, int size) {
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	WARN_ON(!ctx);
+	ctx->teedev = ofs_tee;
+	INIT_LIST_HEAD(&ctx->list_shm);
+	return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+}
 
 
 static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, phys_addr_t from, int request, int flag) {
@@ -145,7 +154,7 @@ static inline void ofs_prep_pg_alloc_request(struct ofs_msg *msg, pgoff_t index,
 }
 
 
-static inline void ofs_pg_copy_request(pgoff_t index, phys_addr_t from) {
+static inline void ofs_pg_copy_request(pgoff_t index, phys_addr_t from, int direction) {
 	struct ofs_msg *msg;
 	phys_addr_t shm_pa;
 	int rc;
@@ -153,8 +162,12 @@ static inline void ofs_pg_copy_request(pgoff_t index, phys_addr_t from) {
 	/* Make sure the shm is allocated before sending any messages */
 	WARN_ON(!msg); 	
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
-	ofs_prep_pg_request(msg, index, from, 0, 0);
-	printk("lwg:%s:%d:copy a page @ [0x%llx] in normal world to secure world\n", __func__, __LINE__, from);
+	ofs_prep_pg_request(msg, index, from, direction, 0);
+	if (direction == OFS_PG_COPY_TO_SEC) {
+		printk("lwg:%s:%d:copy a page @ [0x%llx] in normal world to secure world\n", __func__, __LINE__, from);
+	} else {
+		printk("lwg:%s:%d:copy a page @ [0x%llx] in normal world from secure world\n", __func__, __LINE__, from);
+	}
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
@@ -173,15 +186,28 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
-static inline void ofs_blk_request(struct ofs_msg *msg, sector_t block, int rw) {
+static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int rw, phys_addr_t pa) {
 	msg->op = OFS_BLK_REQUEST;
 	msg->msg.fs_response.blocknr = block;
 	msg->msg.fs_response.rw = rw;
-	msg->msg.fs_response.payload = NULL;
+	msg->msg.fs_response.pa = pa;
 }
 
+static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
+	struct ofs_msg *msg;
+	phys_addr_t shm_pa;
+	int rc;
+	msg = recv_ofs_msg(ofs_shm);
+	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
+	WARN_ON(!msg);
+	WARN_ON(!pa);
+	ofs_prep_blk_request(msg, block, OFS_BLK_READ, pa);
+	ofs_switch_begin(shm_pa, &ofs_res);
+}
+
+/* dummy, does not do world switch in this */
 static inline void ofs_blk_read(struct ofs_msg *msg, sector_t block) {
-	return ofs_blk_request(msg, block, 0x1);
+	return ofs_prep_blk_request(msg, block, OFS_BLK_READ, 0);
 }
 
 

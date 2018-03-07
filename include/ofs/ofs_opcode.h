@@ -12,4 +12,11 @@
 #define OFS_PG_REQUEST		3
 
 
+#define OFS_PG_COPY_TO_SEC		0
+#define OFS_PG_COPY_FROM_SEC	1
+
+#define OFS_BLK_WRITE	        0
+#define OFS_BLK_READ			1
+
+
 #endif

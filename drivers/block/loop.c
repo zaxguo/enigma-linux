@@ -79,6 +79,10 @@
 #include "loop.h"
 
 #include <asm/uaccess.h>
+/* TODO: put ofs_tee into a common header */
+#include <linux/tee_drv.h>
+#include <ofs/ofs_util.h>
+extern struct tee_device *ofs_tee; 
 
 static DEFINE_IDR(loop_index_idr);
 static DEFINE_MUTEX(loop_index_mutex);
@@ -339,13 +343,49 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	struct req_iterator iter;
 	struct iov_iter i;
 	ssize_t len;
+	struct super_block *sb;
+	struct tee_shm *shm;
+	struct tee_context *ctx;
+	struct ofs_msg *msg;
+	phys_addr_t pa;
+	void *va;
+	int is_init = 0;
+	int j;
+	sb = lo->lo_device->bd_super;
+	if (sb) {
+		is_init = sb->s_flags & MS_OFS;
+		if (is_init)  {
+			printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__);
+			shm = alloc_ofs_shm(ctx,  bvec.bv_len);
+			BUG_ON(!shm);
+			tee_shm_get_pa(shm, 0, &pa);
+			BUG_ON(pa == 0);
+			va = tee_shm_get_va(shm, 0);
+		}
+	}
 
 	rq_for_each_segment(bvec, rq, iter) {
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
+		/* directly change this to use data from secure world */
+		if (is_init) {
+			ofs_blk_read_to_pa(blk_rq_pos(rq), pa);
+			len = copy_to_iter(va, bvec.bv_len, &i);
+			smp_wmb();
+			tee_shm_free(shm);
+			goto ofs_read_done;
+#if DEBUG
+			printk("lwg:%s:%d:dump a few bytes...\n", __func__, __LINE__);
+			byte = va;
+			for (j = 0; j < 8; j++) {
+				printk("[%02x] ", *(byte + j));
+			}
+			printk("\n");
+#endif
+		}
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
+ofs_read_done:
 		if (len < 0)
 			return len;
-
 		flush_dcache_page(bvec.bv_page);
 
 		if (len != bvec.bv_len) {

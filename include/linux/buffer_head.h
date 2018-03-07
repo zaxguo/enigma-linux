@@ -314,14 +314,14 @@ static inline void bforget(struct buffer_head *bh)
 static inline struct buffer_head *
 sb_bread(struct super_block *sb, sector_t block)
 {
-#if 1
+#if 0
 	struct ofs_msg *msg;
 	struct buffer_head *bh;
 	/* This is after the OFS mount is done, meaning the disk img is in-mem */
 	if (is_ofs(sb)) {
 		int i = 0;
 		uint8_t *byte;
-		printk("lwg:%s:OFS wants to read blocks [0x%lx] w/ blocksize [%d]\n", __func__, block, sb->s_blocksize);
+		printk("lwg:%s:OFS wants to read blocks [0x%lx] w/ blocksize [%lu]\n", __func__, block, sb->s_blocksize);
 		msg = recv_ofs_msg(ofs_shm);
 		ofs_blk_read(msg, block);
 		/* TODO: move switch inside blk_read? */
@@ -336,8 +336,12 @@ sb_bread(struct super_block *sb, sector_t block)
 				printk("[0x%02x] ", tmp);
 			}
 		}
+		return bh;
 	}
 #endif
+	/* Here the bh read  requests are still logical block (i.e., the block size specified when mke2fs,
+	 * later this will be translated into physical block number, corresponding to the physical block size
+	 * of the block device */
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
 }
 
