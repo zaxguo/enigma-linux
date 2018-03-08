@@ -360,6 +360,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			BUG_ON(!shm);
 			tee_shm_get_pa(shm, 0, &pa);
 			BUG_ON(pa == 0);
+			printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa);
 			va = tee_shm_get_va(shm, 0);
 		}
 	}
