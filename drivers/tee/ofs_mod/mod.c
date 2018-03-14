@@ -10,7 +10,8 @@
 #include <linux/tee_drv.h> // tee
 #include "../tee_private.h" /* struct tee_shm */
 #include "../optee/optee_private.h" /* optee_rpc_param */
-#include "../optee/optee_smc.h" //optee
+/* #include "../optee/optee_smc.h" //optee */
+#include <ofs/optee_smc.h>
 #include <linux/arm-smccc.h>
 #include <linux/bitops.h>
 #include <asm/io.h>  // virt_to_phys
@@ -93,6 +94,13 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 }
 
 
+static void ofs_bench_start(phys_addr_t shm_pa, struct arm_smccc_res *res) {
+#ifdef OFS_DEBUG
+	printk("lwg:%s:%d:kick start ofs bench\n", __func__, __LINE__);
+#endif
+	raw_ofs_switch(OFS_BENCH_START, shm_pa, res);
+}
+
 static int ofs_bench(void) {
 //	struct arm_smccc_res *res;
 	struct tee_context *ctx;
@@ -121,11 +129,12 @@ static int ofs_bench(void) {
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
 	/* prepare the page request */
-	ofs_pg_request(0xdeadbeef, 0x1);
+	/* ofs_pg_request(0xdeadbeef, 0x1); */
 	/* Kick start the benchmark */
-//	ofs_switch_begin(shm_pa, &ofs_res);
-	/* TODO: might need to hack the SMC func ID for a better name */
+	ofs_bench_start(shm_pa, &ofs_res);
+	/* ofs_switch_begin(shm_pa, &ofs_res); */
 	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
+	/* TODO: might need to hack the SMC func ID for a better name */
 #if 0
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 		printk("lwg:a0 = %08lx\n", ofs_res.a0);
@@ -142,24 +151,22 @@ static int ofs_bench(void) {
 		/* It turns out that this PA can be accessed... */
 		printk("lwg:%s: *(int *)va = [%08x]\n", __func__, *(int *)va);
 		/* Page allocation testing code snippet */
-#endif 
 		printk("lwg:%s:%d:sending pg alloc request\n", __func__, __LINE__);
 		ofs_pg_request(0xdeadbeef, 0x1);
 		msg = recv_ofs_msg(ofs_shm);
 		printk("lwg:%s:%d: receiving OP = %d\n", __func__, __LINE__, msg->op);
 		printk("lwg:%s:page allocated @ [0x%lx]\n", __func__, msg->msg.page_response.pa);
 		return rc; /* Testing page request only, return upon success */
-
-
+#endif
 		msg = recv_ofs_msg(ofs_shm);
 		smp_mb();
-		if (msg) 
+		if (msg)
 			ofs_handle_msg(msg);
 	} else {
 		rc = ofs_res.a0;
 	}
 	/* Finish handling, returning to secure world */
-#if 0 
+#if 0
 	/* Testing code, to see if a block request can be passed back */
 	msg->op = OFS_BLK_REQUEST;
 	msg->msg.fs_response.blocknr = 0xdeadbeef;
@@ -168,7 +175,7 @@ static int ofs_bench(void) {
 	smp_mb();
 
 	ofs_switch_resume(&ofs_res);
-#endif 
+#endif
 
 
 	return rc;
@@ -177,7 +184,7 @@ static int ofs_bench(void) {
 static void read_file(void) {
 	struct file *f;
 	struct inode *ino;
-//	char buf[128];	
+//	char buf[128];
 	f = filp_open("/mnt/ext2/ofs", O_RDONLY, 0);
 	if (IS_ERR(f)) {
 		printk("lwg:%s:cannot read file\n", __func__);
@@ -192,7 +199,7 @@ static void read_file(void) {
 static void test_page(void)  {
 	struct page *page;
 	int dump_size = 0x2;
-	int i; 
+	int i;
 	page = alloc_page(GFP_KERNEL);
 	if (page) {
 		void *addr = page_address(page);
@@ -234,7 +241,7 @@ static void test_cma(void) {
 	for(i = size - 8; i < size; i++) {
 		printk("[%02x] ", *(byte + i));
 	}
-	
+
 	return ;
 }
 
@@ -242,14 +249,13 @@ static void test(void) {
 	return  test_cma();
 }
 
-
 /* More convenient to control debugging and kickstart the benchmark
  * op =
  * 1: kickstart benchmark
  * other: debugging different facilities */
 static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
 	int op = 0;
-	char ops[128];		
+	char ops[128];
 	struct ofs_msg *msg;
 	if (copy_from_user(ops, buf, count)) {
 		return -EFAULT;
@@ -277,6 +283,10 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 		case 3:
 			/* test code zone */
 			test();
+		case 4:
+			/* start the benchmark */
+			ofs_bench();
+
 		default:
 			break;
 	}
@@ -353,4 +363,4 @@ static void __exit ofs_cleanup(void)
 
 module_init(ofs_init);
 module_exit(ofs_cleanup);
-	
+

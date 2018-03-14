@@ -163,6 +163,10 @@ struct optee_smc_calls_revision_result {
 #define OPTEE_SMC_CALL_WITH_ARG \
 	OPTEE_SMC_STD_CALL_VAL(OPTEE_SMC_FUNCID_CALL_WITH_ARG)
 
+#define OPTEE_SMC_RAW_OFS_BENCH_START     0x0005
+#define OFS_BENCH_START \
+	OPTEE_SMC_STD_CALL_VAL(OPTEE_SMC_RAW_OFS_BENCH_START)
+
 /*
  * Get Shared Memory Config
  *

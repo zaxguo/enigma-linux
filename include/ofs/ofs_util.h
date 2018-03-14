@@ -50,8 +50,8 @@ static inline int set_ofs_file(struct file *filp) {
 	sb = ino->i_sb;
 	if (!is_ofs_file(filp)) {
 		if (!strcmp(sb->s_type->name, OFS_FS)) {
-			printk("lwg:%s:%d:setting up ofs file ino = %ld\n", 
-					__func__, 
+			printk("lwg:%s:%d:setting up ofs file ino = %ld\n",
+					__func__,
 					__LINE__,
 					ino->i_ino);
 			set_ofs_address_space(filp->f_mapping);
@@ -75,6 +75,7 @@ static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smc
 	param.a0 = callid;
 	switch(callid) {
 		case OPTEE_SMC_CALL_WITH_ARG:
+		case OFS_BENCH_START:
 #ifdef OFS_DEBUG
 			/* lwg: These are not loaded into register due to the exeception
 			 * hanler in sec world don't load them */
@@ -160,7 +161,7 @@ static inline void ofs_pg_copy_request(pgoff_t index, phys_addr_t from, int dire
 	int rc;
 	msg = recv_ofs_msg(ofs_shm);
 	/* Make sure the shm is allocated before sending any messages */
-	WARN_ON(!msg); 	
+	WARN_ON(!msg);
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	ofs_prep_pg_request(msg, index, from, direction, 0);
 	if (direction == OFS_PG_COPY_TO_SEC) {
@@ -178,9 +179,9 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 	int rc;
 	msg = recv_ofs_msg(ofs_shm);
 	/* Make sure the shm is allocated before sending any messages */
-	WARN_ON(!msg); 	
+	WARN_ON(!msg);
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
-//	ofs_prep_pg_request(msg, index, 0, flag);
+	// ofs_prep_pg_request(msg, index, 0, flag);
 	ofs_prep_pg_alloc_request(msg, index, flag);
 	printk("lwg:%s:%d:allocate a secure page for [0x%lx] in secure world\n", __func__, __LINE__, index);
 	ofs_switch_begin(shm_pa, &ofs_res);
