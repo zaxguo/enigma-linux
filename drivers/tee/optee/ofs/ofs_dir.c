@@ -7,7 +7,7 @@ EXPORT_SYMBOL(ofs_mkdir);
 
 int ofs_open(const char *path, int mode) {
 	printk("lwg:%s:%d:entered\n", __func__, __LINE__);
-	return sys_open(path, O_RDWR|O_APPEND, S_IRWXU);
+	return sys_open(path, O_RDWR, 0);
 }
 EXPORT_SYMBOL(ofs_open);
 

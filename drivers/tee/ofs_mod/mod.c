@@ -29,6 +29,7 @@
 #include <ofs/ofs_opcode.h>
 #include "ofs_handler.h"
 #include <linux/dma-mapping.h>
+#include "ofs_syscall.h"
 
 
 MODULE_LICENSE("GPL");
@@ -134,7 +135,7 @@ static int ofs_bench(void) {
 	ofs_bench_start(shm_pa, &ofs_res);
 	/* ofs_switch_begin(shm_pa, &ofs_res); */
 	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
-	/* TODO: might need to hack the SMC func ID for a better name */
+		printk("lwg:%s:%d:RPC caught, start normal world fs\n", __func__, __LINE__);
 #if 0
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 		printk("lwg:a0 = %08lx\n", ofs_res.a0);
@@ -246,7 +247,21 @@ static void test_cma(void) {
 }
 
 static void test(void) {
-	return  test_cma();
+	char p[10];
+	int read = 0;
+	/* int fd = ofs_open("/mnt/ext2/test.txt", 0666); */
+	int fd = ofs_open("/home/linaro/exp.sh", 0666);
+	if (fd <= 0) {
+		printk("open failed\n");
+	}
+	printk("lwg:%s:%d:fd = %d\n", __func__, __LINE__, fd);
+	read = ofs_read(fd, p, 5);
+	printk("read out [%s]\n", p);
+	if (read < 0) {
+		printk("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %d\n", read);
+	}
+	return;
+	/* return  test_cma(); */
 }
 
 /* More convenient to control debugging and kickstart the benchmark
@@ -271,7 +286,6 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 			msg = recv_ofs_msg(ofs_shm);
 			ofs_handle_msg(msg);
 			ofs_switch_resume(&ofs_res);
-
 			break;
 		case 2:
 //			read_file();
@@ -283,10 +297,11 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 		case 3:
 			/* test code zone */
 			test();
+			break;
 		case 4:
 			/* start the benchmark */
 			ofs_bench();
-
+			break;
 		default:
 			break;
 	}
@@ -298,12 +313,12 @@ static int ofs_show(struct seq_file *file, void *v) {
 	return 0;
 }
 
-static int ofs_open(struct inode *inode, struct file *filp) {
+static int ofs_file_open(struct inode *inode, struct file *filp) {
 	return single_open(filp, ofs_show, NULL);
 }
 
 static const struct file_operations ofs_procfs_ops = {
-	.open  = ofs_open,
+//	.open  = ofs_file_open, /* note that an open must correspond to one release, vice versa. Otherwise bad things will happen */
 	.write = ofs_write,
 	.read = seq_read,
 };
