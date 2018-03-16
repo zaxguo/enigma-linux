@@ -2,6 +2,8 @@
 #define OFS_MSG_H
 #include <linux/types.h>
 
+
+extern unsigned long return_thread;
 /* the FS syscalls issued from secure world */
 #define OFS_MKDIR	1
 #define OFS_OPEN	2
@@ -18,7 +20,7 @@
  * 3: flag */
 
 struct ofs_fs_request {
-	int request;	
+	int request;
 	int flag;
 	char filename[MAX_FILENAME];
 };
@@ -28,6 +30,7 @@ struct ofs_fs_response {
 	int rw;
 	unsigned long blocknr;
 	phys_addr_t pa;
+	int fd;
 };
 
 
@@ -55,6 +58,9 @@ struct ofs_msg {
 
 
 /* helper function */
+#define requests_to_msg(req, name) \
+	container_of(req, struct ofs_msg, msg.name)
+
 int ofs_fs_request_alloc(struct ofs_fs_request *);
 struct ofs_msg *ofs_msg_alloc(void);
 
@@ -63,4 +69,4 @@ struct ofs_msg *ofs_msg_alloc(void);
 
 
 
-#endif 
+#endif

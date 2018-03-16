@@ -45,6 +45,9 @@ extern int	ofs_mkdir(const char *, int);
 extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
 
+unsigned long return_thread = 0;
+
+
 static int ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
 	struct tee_ioctl_invoke_arg arg;
@@ -135,7 +138,8 @@ static int ofs_bench(void) {
 	ofs_bench_start(shm_pa, &ofs_res);
 	/* ofs_switch_begin(shm_pa, &ofs_res); */
 	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
-		printk("lwg:%s:%d:RPC caught, start normal world fs\n", __func__, __LINE__);
+		return_thread = ofs_res.a3;
+		printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3);
 #if 0
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 		printk("lwg:a0 = %08lx\n", ofs_res.a0);
@@ -161,8 +165,11 @@ static int ofs_bench(void) {
 #endif
 		msg = recv_ofs_msg(ofs_shm);
 		smp_mb();
-		if (msg)
+		if (msg) {
 			ofs_handle_msg(msg);
+			/* finish handling */
+			/* ofs_switch_resume(&ofs_res); */
+		}
 	} else {
 		rc = ofs_res.a0;
 	}

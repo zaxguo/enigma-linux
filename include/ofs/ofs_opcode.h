@@ -12,6 +12,8 @@
 #define OFS_PG_REQUEST		3
 
 
+#define OFS_FS_RESPONSE			OFS_FS_REQUEST
+
 #define OFS_PG_COPY_TO_SEC		0
 #define OFS_PG_COPY_FROM_SEC	1
 

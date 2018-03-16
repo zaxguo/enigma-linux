@@ -6,7 +6,10 @@
 #include <linux/file.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <ofs/ofs_util.h>
 
+
+/* TODO: this read DOES not take the POS in fd into consideration */
 int _ofs_read(int fd, char *buf, int count) {
 	struct fd f;
 	struct file *filp;
@@ -14,7 +17,9 @@ int _ofs_read(int fd, char *buf, int count) {
 	f = fdget(fd);
 	filp = f.file;
 	if (!IS_ERR(filp)) {
+		/* This fires up the fs logic */
 		len = kernel_read(filp, 0, buf, count);
+		/* TODO: update the POS in fd */
 		if (len < 0) goto err;
 		buf[len] = '\0';
 		printk("lwg:%s:%d:read file ino = [%lu]\n", __func__, __LINE__, filp->f_inode->i_ino);
@@ -27,18 +32,37 @@ err:
 	return -EFAULT;
 }
 
+static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
+	msg->op = OFS_FS_RESPONSE;
+	msg->msg.fs_response.fd = fd;
+	msg->msg.fs_response.blocknr = -1;
+	msg->msg.fs_response.pa	     = -1;
+	msg->msg.fs_response.rw		 = -1;
+	smp_mb();
+	printk("lwg:%s:%d:complete fd = [%d]\n", __func__, __LINE__, msg->fd);
+}
+
 int ofs_open_handler(void *data) {
 	char buf[15];
 	int len;
+	struct ofs_msg *msg;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	int fd = ofs_open(req->filename, 0666);
+	/* msg = container_of(req, struct ofs_msg, msg.fs_request); */
+	msg = requests_to_msg(req, fs_request);
+	ofs_open_response(msg, fd);
+#if 0
 	if (fd >= 0) {
+		/* we don't need this, test only */
 		len = _ofs_read(fd, buf, 10);
 		if (len > 0) {
 			buf[len] = '\0';
 			printk("%s\n", buf);
 		}
 	}
+#endif
+	ofs_res.a3 = return_thread;
+	ofs_switch_resume(&ofs_res);
 	return 0;
 }
 

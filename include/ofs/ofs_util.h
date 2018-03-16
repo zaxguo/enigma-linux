@@ -23,6 +23,7 @@
 extern struct tee_shm *ofs_shm;
 extern struct tee_device *ofs_tee;
 extern struct arm_smccc_res ofs_res;
+extern unsigned long return_thread;
 
 
 static inline int is_ofs_address_space(struct address_space *mapping) {
