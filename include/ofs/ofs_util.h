@@ -5,6 +5,7 @@
 
 #include <linux/tee_drv.h>
 #include <linux/arm-smccc.h>
+#include <linux/mutex.h>
 /* Dirty */
 #include <ofs/optee_private.h>
 #include <ofs/optee_msg.h>

@@ -8,69 +8,18 @@
 #include <linux/sched.h>
 #include <ofs/ofs_util.h>
 
+/* index corresponds to its opcode */
+static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
+	"X",
+	"ofs_mkdirat",	 /* ofs_mkdir 1 */
+	"ofs_open",		 /* ofs_open 2 */
+	"ofs_read",		 /* ofs_read 3 */
+	"ofs_write",	 /* ofs_write 4 */
+	"X",
+};
 
-/* TODO: this read DOES not take the POS in fd into consideration */
-int _ofs_read(int fd, char *buf, int count) {
-	struct fd f;
-	struct file *filp;
-	int len = 0;
-	f = fdget(fd);
-	filp = f.file;
-	if (!IS_ERR(filp)) {
-		/* This fires up the fs logic */
-		len = kernel_read(filp, 0, buf, count);
-		/* TODO: update the POS in fd */
-		if (len < 0) goto err;
-		buf[len] = '\0';
-		printk("lwg:%s:%d:read file ino = [%lu]\n", __func__, __LINE__, filp->f_inode->i_ino);
-		printk("lwg:%s:%d:read out %d bytes [%s]\n", __func__, __LINE__, len, buf);
-		return len;
-	}
-err:
-	printk("lwg:%s:%d:READ FAULT err code = [%d]\n", __func__, __LINE__, len);
-	fdput(f);
-	return -EFAULT;
-}
-
-static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
-	msg->op = OFS_FS_RESPONSE;
-	msg->msg.fs_response.fd = fd;
-	msg->msg.fs_response.blocknr = -1;
-	msg->msg.fs_response.pa		 = -1;
-	msg->msg.fs_response.rw		 = -1;
-	smp_mb();
-	printk("lwg:%s:%d:complete fd = [%d]\n", __func__, __LINE__, msg->msg.fs_response.fd);
-}
-
-int ofs_open_handler(void *data) {
-	char buf[15];
-	int len;
-	struct ofs_msg *msg;
-	struct file *file;
-	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
-	int fd = ofs_open(req->filename, 0666);
-	file = fget(fd);
-	if (IS_ERR(file)) {
-		printk("lwg:%s:%d:ERROR, no file pointer\n", __func__, __LINE__);
-	}
-	__fd_install(&ofs_files, fd, file);
-	printk("lwg:%s:%d:fd [%d] installed to ofs_files\n", __func__, __LINE__, fd);
-	msg = requests_to_msg(req, fs_request);
-	ofs_open_response(msg, fd);
-#if 0
-	if (fd >= 0) {
-		/* we don't need this, test only */
-		len = _ofs_read(fd, buf, 10);
-		if (len > 0) {
-			buf[len] = '\0';
-			printk("%s\n", buf);
-		}
-	}
-#endif
-	/* FIXME: dirty fix this */
-	ofs_res.a3 = return_thread;
-	ofs_switch_resume(&ofs_res);
-	return 0;
+static inline void dump_ofs_fs_request(struct ofs_fs_request *req) {
+	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], req->filename);
 }
 
 static int ofs_fs_handler(void *data) {
@@ -81,17 +30,10 @@ static int ofs_fs_handler(void *data) {
 	filename = req->filename;
 	switch (request) {
 		case OFS_MKDIR:
-			//		ofs_mkdir(filename, 0777);
-			/* printk("lwg:%s:mkdirat:%d:%d:\"%s\"\n", __func__, */
-			/*         msg->op,\ */
-			/*         msg->msg.fs_request.request,\ */
-			/*         msg->msg.fs_request.filename); */
+			ofs_mkdir(filename, 0777);
 			break;
 		case OFS_OPEN:
-			/* printk("lwg:%s:oepn:%d:%d:\"%s\"\n", __func__, */
-			/*         msg->op,\ */
-			/*         msg->msg.fs_request.request,\ */
-			/*         msg->msg.fs_request.filename); */
+			dump_ofs_fs_request(req);
 			ofs_open_handler(req);
 			break;
 		case OFS_READ:
