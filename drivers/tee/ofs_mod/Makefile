@@ -1,4 +1,4 @@
-obj-m := ofs.o 
+obj-m := ofs.o
 ofs-objs := mod.o ofs_fs_handler.o #ofs_shm.o
 
 #obj-m += ofs.o

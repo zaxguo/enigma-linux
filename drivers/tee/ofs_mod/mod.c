@@ -17,6 +17,8 @@
 #include <asm/io.h>  // virt_to_phys
 #include <linux/syscalls.h> // syscall
 #include <linux/fs.h> /* filp_open */
+#include <linux/file.h>
+#include <linux/fdtable.h>
 #include <linux/proc_fs.h> /* userspace interaction */
 #include <linux/unistd.h>
 #include <linux/mm.h> /* ioremap */
@@ -39,14 +41,24 @@ MODULE_DESCRIPTION("OFS Normal World Handler Interacting with TEE");
 extern struct tee_device *ofs_tee;
 extern struct tee_shm *tee_shm_alloc(struct tee_context *ctx, size_t size, u32 flags);
 extern int tee_shm_get_pa(struct tee_shm *shm, size_t off, phys_addr_t *pa);
-
 extern int	ofs_mkdir(const char *, int);
-
 extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
 
 unsigned long return_thread = 0;
 
+struct files_struct ofs_files = {
+	.count		= ATOMIC_INIT(1),
+	.fdt		= &ofs_files.fdtab,
+	.fdtab		= {
+		.max_fds	= NR_OPEN_DEFAULT,
+		.fd		= &ofs_files.fd_array[0],
+		.close_on_exec	= ofs_files.close_on_exec_init,
+		.open_fds	= ofs_files.open_fds_init,
+		.full_fds_bits	= ofs_files.full_fds_bits_init,
+	},
+	.file_lock	= __SPIN_LOCK_UNLOCKED(ofs_files.file_lock),
+};
 
 static int ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
@@ -78,8 +90,6 @@ static int ofs_tee_open(struct tee_device *tee) {
 	return 0;
 }
 
-
-
 static int ofs_handle_msg(struct ofs_msg *msg) {
 	int opcode = msg->op;
 	int rc;
@@ -96,7 +106,6 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 	}
 	return 0;
 }
-
 
 static void ofs_bench_start(phys_addr_t shm_pa, struct arm_smccc_res *res) {
 #ifdef OFS_DEBUG
@@ -226,9 +235,7 @@ static void test_page(void)  {
 		kunmap_atomic(addr);
 		printk("page highmem = %d\n", PageHighMem(page) ? 1 : 0);
 	}
-
 }
-
 
 static void test_cma(void) {
 	void *vaddr;
@@ -255,20 +262,20 @@ static void test_cma(void) {
 
 static void test(void) {
 	char p[10];
+	struct file *file;
+	int fd = 0;
 	int read = 0;
-	/* int fd = ofs_open("/mnt/ext2/test.txt", 0666); */
-	int fd = ofs_open("/home/linaro/exp.sh", 0666);
-	if (fd <= 0) {
-		printk("open failed\n");
-	}
-	printk("lwg:%s:%d:fd = %d\n", __func__, __LINE__, fd);
-	read = ofs_read(fd, p, 5);
-	printk("read out [%s]\n", p);
-	if (read < 0) {
-		printk("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %d\n", read);
+	file = fcheck_files(&ofs_files, fd);
+	if (file) {
+		read = kernel_read(file, 0, p, 5);
+		if (read > 0) {
+			p[read] = '\0';
+			printk("read out [%s]\n", p);
+		}
+	} else {
+		WARN_ON(1);
 	}
 	return;
-	/* return  test_cma(); */
 }
 
 /* More convenient to control debugging and kickstart the benchmark

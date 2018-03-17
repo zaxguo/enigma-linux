@@ -621,6 +621,8 @@ void __fd_install(struct files_struct *files, unsigned int fd,
 	rcu_assign_pointer(fdt->fd[fd], file);
 	rcu_read_unlock_sched();
 }
+EXPORT_SYMBOL(__fd_install);
+/* I know its bad */
 
 void fd_install(unsigned int fd, struct file *file)
 {
