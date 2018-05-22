@@ -15,6 +15,8 @@ static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
 	printk("lwg:%s:%d:complete fd = [%d]\n", __func__, __LINE__, msg->msg.fs_response.fd);
 }
 
+
+int ofs_read(int, char *, int);
 int ofs_open_handler(void *data) {
 	char buf[15];
 	int len;
@@ -30,19 +32,18 @@ int ofs_open_handler(void *data) {
 	printk("lwg:%s:%d:fd [%d] installed to ofs_files\n", __func__, __LINE__, fd);
 	msg = requests_to_msg(req, fs_request);
 	ofs_open_response(msg, fd);
-#if 0
+#if 1
 	if (fd >= 0) {
 		/* we don't need this, test only */
-		len = _ofs_read(fd, buf, 10);
+		len = ofs_read(fd, buf, 10);
 		if (len > 0) {
 			buf[len] = '\0';
-			printk("%s\n", buf);
+			printk("lwg:%s:%s\n", buf, __func__);
 		}
 	}
 #endif
 	/* FIXME: dirty fix this */
 	ofs_res.a3 = return_thread;
-	ofs_switch_resume(&ofs_res);
 	return 0;
 }
 

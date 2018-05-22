@@ -18,6 +18,8 @@ static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 	"X",
 };
 
+/* Note this should be used BEFORE any handler since handler will
+ * repurpose this msg (i.e., change it to response) */
 static inline void dump_ofs_fs_request(struct ofs_fs_request *req) {
 	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], req->filename);
 }
@@ -40,6 +42,7 @@ static int ofs_fs_handler(void *data) {
 		case OFS_WRITE:
 			BUG();
 	}
+	ofs_switch_resume(&ofs_res);
 }
 
 

@@ -120,11 +120,9 @@ static int ofs_bench(void) {
 	int rc;
 	phys_addr_t shm_pa;
 	struct ofs_msg *msg;
-	int is_first;
 	int op;
 
 	/* Init */
-	is_first = 1;
 	op = 0;
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
@@ -145,7 +143,7 @@ static int ofs_bench(void) {
 	/* ofs_pg_request(0xdeadbeef, 0x1); */
 	/* Kick start the benchmark */
 	ofs_bench_start(shm_pa, &ofs_res);
-	/* ofs_switch_begin(shm_pa, &ofs_res); */
+	/* TODO: may change this to indicate the end of the benchmark */
 	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
 		return_thread = ofs_res.a3;
 		printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3);
@@ -179,7 +177,12 @@ static int ofs_bench(void) {
 			/* finish handling */
 			/* ofs_switch_resume(&ofs_res); */
 		}
-	} else {
+		/* One considertion of not swithing here is that kthread is async,
+		 * which may lead to premature resume */
+		/* ofs_switch_resume(&ofs_res); */
+	}
+
+	{
 		rc = ofs_res.a0;
 	}
 	/* Finish handling, returning to secure world */
@@ -322,8 +325,19 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 	return count;
 }
 
+static inline void ofs_print_help(struct seq_file *file) {
+
+	seq_printf(file, "------------OFS-----------\n");
+	seq_printf(file, "Usage:\n");
+	seq_printf(file, "echo [x] > /proc/ofs\n");
+	seq_printf(file, "x = 1-3: different tests\n");
+	seq_printf(file, "x = 4: kickstart the benchmark\n");
+
+}
+
 static int ofs_show(struct seq_file *file, void *v) {
-	printk("lwg:%s:%d:opened\n", __func__, __LINE__);
+	seq_printf(file, "lwg:%s:%d:opened\n", __func__, __LINE__);
+	ofs_print_help(file);
 	return 0;
 }
 
@@ -332,11 +346,12 @@ static int ofs_file_open(struct inode *inode, struct file *filp) {
 }
 
 static const struct file_operations ofs_procfs_ops = {
-//	.open  = ofs_file_open, /* note that an open must correspond to one release, vice versa. Otherwise bad things will happen */
+	/* note that an open must correspond to one release, vice versa. Otherwise bad things will happen  */
+	.open  = ofs_file_open,
 	.write = ofs_write,
 	.read = seq_read,
+	.release = seq_release,
 };
-
 
 static int remove_ofs_procfs(void) {
 	return 1;
