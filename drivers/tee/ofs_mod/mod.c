@@ -357,8 +357,9 @@ static const struct file_operations ofs_procfs_ops = {
 	.release = seq_release,
 };
 
-static int remove_ofs_procfs(void) {
-	return 1;
+static int remove_ofs_procfs(struct proc_dir_entry *proc) {
+	proc_remove(proc);
+	return 0;
 }
 
 static int init_ofs_procfs(void) {
@@ -366,7 +367,7 @@ static int init_ofs_procfs(void) {
 	ofs = proc_create("ofs", 0444, NULL, &ofs_procfs_ops);
 	if (!ofs)
 		return -ENOMEM;
-	return 1;
+	return 0;
 }
 
 static int __init ofs_init(void)
@@ -407,6 +408,8 @@ static void __exit ofs_cleanup(void)
 {
 	printk(KERN_INFO "Cleaning up module.\n");
 	ofs_tee=NULL;
+	/* never do this */
+	remove_ofs_procfs(NULL);
 }
 
 module_init(ofs_init);

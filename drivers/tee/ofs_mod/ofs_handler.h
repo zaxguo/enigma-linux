@@ -7,11 +7,7 @@
 #include <ofs/ofs_msg.h>
 #include <linux/fdtable.h>
 
-
-
 extern struct files_struct ofs_files;
-
-
 
 int ofs_read_handler(void *);
 int ofs_open_handler(void *);

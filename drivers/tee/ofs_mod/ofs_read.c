@@ -10,12 +10,7 @@ static inline struct file *ofs_fget(int fd) {
 }
 
 static inline void ofs_read_response(struct ofs_msg *msg, int count) {
-	msg->op		=	OFS_FS_RESPONSE;
-	msg->msg.fs_response.fd = count; /* being lazy here */
-	msg->msg.fs_response.blocknr = -1;
-	msg->msg.fs_response.pa = -1;
-	msg->msg.fs_response.rw = -1;
-	smp_mb();
+	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 

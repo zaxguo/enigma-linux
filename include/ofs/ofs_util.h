@@ -26,6 +26,14 @@ extern struct tee_device *ofs_tee;
 extern struct arm_smccc_res ofs_res;
 extern unsigned long return_thread;
 
+static inline void ofs_prep_fs_response(struct ofs_msg *msg, int op, int fd, int blocknr, phys_addr_t pa, int rw) {
+	msg->op = op;
+	msg->msg.fs_response.fd = fd;
+	msg->msg.fs_response.blocknr = blocknr;
+	msg->msg.fs_response.pa		 = pa;
+	msg->msg.fs_response.rw		 = rw;
+	smp_mb();
+}
 
 static inline int is_ofs_address_space(struct address_space *mapping) {
 	if (mapping) {
@@ -62,7 +70,6 @@ static inline int set_ofs_file(struct file *filp) {
 	}
 	return 0;
 }
-
 
 static inline void ofs_tag_address_space(struct address_space *mapping) {
 	printk("lwg:%s:%d:....\n", __func__, __LINE__);
@@ -106,7 +113,6 @@ static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smc
 	arm_smccc_smc(param.a0, param.a1, param.a2, param.a3, param.a4, param.a5, param.a6, param.a7, res);
 }
 
-
 static inline void ofs_switch_resume(struct arm_smccc_res *res) {
 #ifdef OFS_DEBUG
 	printk("lwg:%s:rpc done, resume to secure world\n", __func__);
@@ -129,8 +135,6 @@ static inline void ofs_switch(struct arm_smccc_res *res) {
 	raw_ofs_switch(OPTEE_SMC_CALL_WITH_ARG, ofs_shm->paddr, res);
 }
 
-
-
 static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 	return (struct ofs_msg *)shm->kaddr;
 }
@@ -143,7 +147,6 @@ static inline struct tee_shm *alloc_ofs_shm(struct tee_context *ctx, int size) {
 	return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
 }
 
-
 static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, phys_addr_t from, int request, int flag) {
 	msg->op = OFS_PG_REQUEST;
 	msg->msg.page_request.flag  = flag;
@@ -155,7 +158,6 @@ static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, phys_
 static inline void ofs_prep_pg_alloc_request(struct ofs_msg *msg, pgoff_t index, int flag) {
 	return ofs_prep_pg_request(msg, index, 0, 1, flag);
 }
-
 
 static inline void ofs_pg_copy_request(pgoff_t index, phys_addr_t from, int direction) {
 	struct ofs_msg *msg;

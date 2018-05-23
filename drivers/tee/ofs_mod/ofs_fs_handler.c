@@ -45,6 +45,7 @@ static int ofs_fs_handler(void *data) {
 			BUG();
 	}
 	ofs_switch_resume(&ofs_res);
+	return 0;
 }
 
 
