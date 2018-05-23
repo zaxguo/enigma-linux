@@ -23,6 +23,9 @@ struct ofs_fs_request {
 	int request;
 	int flag;
 	char filename[MAX_FILENAME];
+	/* really ugly... */
+	int fd;
+	int count;
 };
 
 /* OFS fs response: normal world --> secure world */

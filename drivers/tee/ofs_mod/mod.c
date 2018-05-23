@@ -145,7 +145,7 @@ static int ofs_bench(void *data) {
 	/* Kick start the benchmark */
 	ofs_bench_start(shm_pa, &ofs_res);
 	/* TODO: may change this to indicate the end of the benchmark */
-	if (OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
+	while(OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
 		return_thread = ofs_res.a3;
 		printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3);
 #if 0

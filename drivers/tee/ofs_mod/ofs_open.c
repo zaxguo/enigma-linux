@@ -5,6 +5,7 @@
 #include <linux/fdtable.h>
 #include "ofs_syscall.h"
 
+/* TODO: refactor for code reuse */
 static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
 	msg->op = OFS_FS_RESPONSE;
 	msg->msg.fs_response.fd = fd;
@@ -32,7 +33,7 @@ int ofs_open_handler(void *data) {
 	printk("lwg:%s:%d:fd [%d] installed to ofs_files\n", __func__, __LINE__, fd);
 	msg = requests_to_msg(req, fs_request);
 	ofs_open_response(msg, fd);
-#if 1
+#if 0
 	if (fd >= 0) {
 		/* we don't need this, test only */
 		len = ofs_read(fd, buf, 10);

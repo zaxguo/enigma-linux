@@ -39,6 +39,8 @@ static int ofs_fs_handler(void *data) {
 			ofs_open_handler(req);
 			break;
 		case OFS_READ:
+			ofs_read_handler(req);
+			break;
 		case OFS_WRITE:
 			BUG();
 	}
