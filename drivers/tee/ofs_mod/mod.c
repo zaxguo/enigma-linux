@@ -5,6 +5,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/kthread.h>
 
 #include <linux/slab.h> // mem
 #include <linux/tee_drv.h> // tee
@@ -114,7 +115,7 @@ static void ofs_bench_start(phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	raw_ofs_switch(OFS_BENCH_START, shm_pa, res);
 }
 
-static int ofs_bench(void) {
+static int ofs_bench(void *data) {
 //	struct arm_smccc_res *res;
 	struct tee_context *ctx;
 	int rc;
@@ -288,6 +289,7 @@ static void test(void) {
 static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
 	int op = 0;
 	char ops[128];
+	struct task_struct *tsk;
 	struct ofs_msg *msg;
 	if (copy_from_user(ops, buf, count)) {
 		return -EFAULT;
@@ -316,8 +318,10 @@ static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count
 			test();
 			break;
 		case 4:
-			/* start the benchmark */
-			ofs_bench();
+			/* start the benchmark, vfs does not seem to work
+			 * in its *own* calling context, we start another
+			 * kthread to do the job */
+			tsk = kthread_run(ofs_bench, NULL, "ofs_bench");
 			break;
 		default:
 			break;

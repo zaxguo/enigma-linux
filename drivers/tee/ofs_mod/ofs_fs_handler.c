@@ -49,8 +49,8 @@ static int ofs_fs_handler(void *data) {
 int ofs_handle_fs_msg(struct ofs_msg *msg) {
 	struct ofs_fs_request *req;
 	req = &(msg->msg.fs_request);
-	struct task_struct *tsk = kthread_run(ofs_fs_handler, (void *)req, "ofs_fs_handler");
-	/* ofs_fs_handler(req); */
+	/* struct task_struct *tsk = kthread_run(ofs_fs_handler, (void *)req, "ofs_fs_handler"); */
+	ofs_fs_handler(req);
 	return 0;
 }
 
