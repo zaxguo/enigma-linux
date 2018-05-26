@@ -1197,13 +1197,23 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
 {
 	struct page *page;
 
+	if (is_ofs_address_space(mapping)) {
+		printk("lwg:%s:%d:entered...dealing with ofs page cache\n", __func__, __LINE__);
+	}
 repeat:
+
 	page = find_get_entry(mapping, offset);
+	if (is_ofs_address_space(mapping)) {
+		printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL);
+	}
 	if (radix_tree_exceptional_entry(page))
 		page = NULL;
-	if (!page)
+	if (!page) {
+		if (is_ofs_address_space(mapping)) {
+			printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL);
+		}
 		goto no_page;
-
+	}
 	if (fgp_flags & FGP_LOCK) {
 		if (fgp_flags & FGP_NOWAIT) {
 			if (!trylock_page(page)) {
@@ -1227,6 +1237,11 @@ repeat:
 		mark_page_accessed(page);
 
 no_page:
+	if (is_ofs_address_space(mapping)) {
+		printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL);
+	}
+
+
 	if (!page && (fgp_flags & FGP_CREAT)) {
 		int err;
 		if ((fgp_flags & FGP_WRITE) && mapping_cap_account_dirty(mapping))
@@ -1239,7 +1254,13 @@ no_page:
 			return NULL;
 
 		/* lwg: we allocate a secure page correspondingly */
+#if 0
+		if (is_mapping_ofs_fs(mapping)) {
+			printk("%s:%d:XXXXXXXXXX\n", __func__, __LINE__);
+		}
+#endif
 		if (is_ofs_address_space(mapping)) {
+			printk("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 			ofs_pg_request(offset, 0x1);
 		}
 
@@ -1699,7 +1720,7 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	if(is_ofs_file(filp)) {
 		is_ofs = 1;
 #if 1
-		printk("lwg:%s:%d:caught an OFS file, ino = %lu\n", 
+		printk("lwg:%s:%d:caught an OFS file, ino = %lu\n",
 				__func__,
 				__LINE__,
 				inode->i_ino);
@@ -1732,8 +1753,14 @@ find_page:
 					ra, filp,
 					index, last_index - index);
 			page = find_get_page(mapping, index);
-			if (unlikely(page == NULL))
+			if (is_ofs_address_space(mapping)) {
+				printk("lwg:%s:%d:page NUll == %d\n", __func__, __LINE__, page == NULL);
+			}
+
+
+			if (unlikely(page == NULL)) {
 				goto no_cached_page;
+			}
 		}
 		if (PageReadahead(page)) {
 			page_cache_async_readahead(mapping,
@@ -1913,6 +1940,11 @@ no_cached_page:
 		 * Ok, it wasn't cached, so we need to create a new
 		 * page..
 		 */
+		if (is_ofs_address_space(mapping)) {
+			printk("lwg:%s:%d:entered...dealing with ofs page cache\n", __func__, __LINE__);
+		}
+
+
 		page = page_cache_alloc_cold(mapping);
 		if (!page) {
 			error = -ENOMEM;

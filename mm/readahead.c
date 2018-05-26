@@ -195,8 +195,10 @@ int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 	 * uptodate then the caller will launch readpage again, and
 	 * will then handle the error.
 	 */
-	if (ret)
+	if (ret) {
+		printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 		read_pages(mapping, filp, &page_pool, ret, gfp_mask);
+	}
 	BUG_ON(!list_empty(&page_pool));
 out:
 	return ret;
@@ -480,16 +482,20 @@ void page_cache_sync_readahead(struct address_space *mapping,
 			       pgoff_t offset, unsigned long req_size)
 {
 	/* no read-ahead */
-	if (!ra->ra_pages)
+	if (!ra->ra_pages) {
+		/* printk("lwg:%s:%d:hit\n", __func__, __LINE__); */
 		return;
+	}
 
 	/* be dumb */
 	if (filp && (filp->f_mode & FMODE_RANDOM)) {
+		/* printk("lwg:%s:%d:hit\n", __func__, __LINE__); */
 		force_page_cache_readahead(mapping, filp, offset, req_size);
 		return;
 	}
 
 	/* do read-ahead */
+	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	ondemand_readahead(mapping, ra, filp, false, offset, req_size);
 }
 EXPORT_SYMBOL_GPL(page_cache_sync_readahead);

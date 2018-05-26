@@ -60,15 +60,29 @@ static inline int set_ofs_file(struct file *filp) {
 	sb = ino->i_sb;
 	if (!is_ofs_file(filp)) {
 		if (!strcmp(sb->s_type->name, OFS_FS)) {
-			printk("lwg:%s:%d:setting up ofs file ino = %ld\n",
+			struct address_space *mapping = filp->f_mapping;
+			set_ofs_address_space(mapping);
+			printk("lwg:%s:%d:setting up ofs file ino = %ld, flag = %08lx\n",
 					__func__,
 					__LINE__,
-					ino->i_ino);
-			set_ofs_address_space(filp->f_mapping);
+					ino->i_ino,
+					mapping->flags);
+			printk("lwg:%s:%d:testing bit = [%d]\n", __func__, __LINE__, test_bit(AS_OFS, &mapping->flags));
 			return 1;
 		}
 	}
 	return 0;
+}
+
+static inline int is_mapping_ofs_fs(struct file *filp) {
+	struct inode *ino;
+	struct super_block *sb;
+	if (IS_ERR(filp)) {
+		return 0;
+	}
+	ino = filp->f_inode;
+	sb = ino->i_sb;
+	return (!strcmp(sb->s_type->name, OFS_FS));
 }
 
 static inline void ofs_tag_address_space(struct address_space *mapping) {
