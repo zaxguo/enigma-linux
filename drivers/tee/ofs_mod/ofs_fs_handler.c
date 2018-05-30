@@ -12,9 +12,10 @@
 static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 	"X",
 	"ofs_mkdirat",	 /* ofs_mkdir 1 */
-	"ofs_open",		 /* ofs_open 2 */
-	"ofs_read",		 /* ofs_read 3 */
+	"ofs_open",		 /* ofs_open  2 */
+	"ofs_read",		 /* ofs_read  3 */
 	"ofs_write",	 /* ofs_write 4 */
+	"ofs_fsync",	 /* ofs_fsync 5 */
 	"X",
 };
 
@@ -35,13 +36,17 @@ static int ofs_fs_handler(void *data) {
 			ofs_mkdir(filename, 0777);
 			break;
 		case OFS_OPEN:
-			dump_ofs_fs_request(req);
+			/* dump_ofs_fs_request(req); */
 			ofs_open_handler(req);
 			break;
 		case OFS_READ:
 			ofs_read_handler(req);
 			break;
 		case OFS_WRITE:
+		case OFS_FSYNC:
+			ofs_fsync_handler(req);
+			break;
+		default:
 			BUG();
 	}
 	ofs_switch_resume(&ofs_res);

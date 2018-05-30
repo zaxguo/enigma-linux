@@ -12,6 +12,7 @@
 #define OFS_OPEN	2
 #define OFS_READ	3
 #define OFS_WRITE	4
+#define OFS_FSYNC   5
 
 
 

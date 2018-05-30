@@ -1749,6 +1749,7 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 find_page:
 		page = find_get_page(mapping, index);
 		if (!page) {
+			/* lwg: this submits a blk read req */
 			page_cache_sync_readahead(mapping,
 					ra, filp,
 					index, last_index - index);

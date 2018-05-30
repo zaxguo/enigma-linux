@@ -17,4 +17,9 @@ int ofs_read(int fd, char *buf, int count) {
 }
 EXPORT_SYMBOL(ofs_read);
 
+int ofs_fsync(int fd) {
+	return sys_syncfs(fd);
+}
+EXPORT_SYMBOL(ofs_fsync);
+
 

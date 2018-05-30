@@ -10,9 +10,10 @@ extern struct files_struct ofs_files;
 
 /* note the function is defined in optee/ofs/ofs_dir.c */
 extern int ofs_mkdir(const char *, int);
-/* wrapper for sys_open */
+/* wrapper for syscalls */
 extern int ofs_open(const char *, int);
 extern int ofs_read(int, char *, int);
+extern int ofs_fsync(int);
 
 
 

@@ -14,8 +14,14 @@ static inline void ofs_read_response(struct ofs_msg *msg, int count) {
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
+static inline void ofs_fsync_response(struct ofs_msg *msg, int count) {
+	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
+	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
+}
+
+
 /* TODO: this read DOES not take the POS in fd into consideration */
-int _ofs_read(struct file* filp, loff_t offset, char *buf, int count) {
+static int _ofs_read(struct file* filp, loff_t offset, char *buf, int count) {
 	int len = 0;
 	if (!IS_ERR(filp)) {
 		/* This fires up the fs logic */
@@ -34,7 +40,7 @@ err:
 }
 
 /* preserve normal sys_read syntax */
-int ofs_read(int fd, char *buf, int count) {
+static int ofs_read(int fd, char *buf, int count) {
 	int len;
 	struct file *filp = ofs_fget(fd);
 	loff_t pos = filp->f_pos;
@@ -61,3 +67,16 @@ int ofs_read_handler(void *data) {
 	ofs_res.a3 = return_thread;
 	return count;
 }
+
+int ofs_fsync_handler(void *data) {
+	int fd;
+	struct ofs_msg *msg;
+	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
+	fd = req->fd;
+	printk("lwg:%s:%d:fsync for [%d]\n", __func__, __LINE__, fd);
+	msg = requests_to_msg(req, fs_request);
+	ofs_fsync_response(msg, 0);
+	ofs_res.a3 = return_thread;
+	return 0;
+}
+
