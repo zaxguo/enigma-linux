@@ -163,6 +163,7 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 
 	down_read(&sb->s_umount);
 	ret = sync_filesystem(sb);
+	printk("lwg:%s:%d:syncing %s\n", __func__, __LINE__, sb->s_type->name);
 	up_read(&sb->s_umount);
 
 	fdput(f);

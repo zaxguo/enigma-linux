@@ -3,6 +3,7 @@
 #include <ofs/ofs_msg.h>
 #include <linux/errno.h>
 #include "ofs_handler.h"
+#include "ofs_syscall.h"
 #include <ofs/ofs_util.h>
 
 static inline struct file *ofs_fget(int fd) {
@@ -14,10 +15,13 @@ static inline void ofs_read_response(struct ofs_msg *msg, int count) {
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
-static inline void ofs_fsync_response(struct ofs_msg *msg, int count) {
+static inline void ofs_write_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
+
+
+
 
 
 /* TODO: this read DOES not take the POS in fd into consideration */
@@ -40,12 +44,39 @@ err:
 }
 
 /* preserve normal sys_read syntax */
-static int ofs_read(int fd, char *buf, int count) {
+int ofs_read(int fd, char *buf, int count) {
 	int len;
 	struct file *filp = ofs_fget(fd);
 	loff_t pos = filp->f_pos;
 	len = _ofs_read(filp, pos, buf, count);
-	if (len > 0) {
+	if (len) {
+		/* read successful update pos */
+		filp->f_pos = pos + len;
+		return len;
+	}
+	return -EFAULT;
+}
+
+
+static int _ofs_write(struct file* filp, loff_t offset, char *buf, int count) {
+	int len = 0;
+	if (!IS_ERR(filp)) {
+		len = kernel_write(filp, offset, buf, count);
+		if (len < 0) goto err;
+		printk("lwg:%s:%d:write file ino = [%lu], [%d] bytes\n", __func__, __LINE__, filp->f_inode->i_ino, len);
+	}
+err:
+	printk("lwg:%s:%d:WRITE FAULT err code = [%d]\n", __func__, __LINE__, len);
+	printk("lwg:%s:%d:File mode = %08x\n", __func__, __LINE__, filp->f_mode);
+	return -EFAULT;
+}
+
+int ofs_write(int fd, char *buf, int count) {
+	int len;
+	struct file *filp = ofs_fget(fd);
+	loff_t pos = filp->f_pos;
+	len = _ofs_write(filp, pos, buf, count);
+	if (len) {
 		/* read successful update pos */
 		filp->f_pos = pos + len;
 		return len;
@@ -68,15 +99,19 @@ int ofs_read_handler(void *data) {
 	return count;
 }
 
-int ofs_fsync_handler(void *data) {
-	int fd;
+int ofs_write_handler(void *data) {
+	int fd, count;
+	char buf[20]; /* random number */
 	struct ofs_msg *msg;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	fd = req->fd;
-	printk("lwg:%s:%d:fsync for [%d]\n", __func__, __LINE__, fd);
+	count = req->count;
+	printk("lwg:%s:%d:write [%d] for [%d]\n", __func__, __LINE__, fd, count);
+	count = ofs_write(fd, buf, count);
 	msg = requests_to_msg(req, fs_request);
-	ofs_fsync_response(msg, 0);
+	ofs_write_response(msg, count);
 	ofs_res.a3 = return_thread;
-	return 0;
+	return count;
 }
+
 

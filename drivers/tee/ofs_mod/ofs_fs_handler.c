@@ -21,8 +21,9 @@ static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 
 /* Note this should be used BEFORE any handler since handler will
  * repurpose this msg (i.e., change it to response) */
+
 static inline void dump_ofs_fs_request(struct ofs_fs_request *req) {
-	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], req->filename);
+	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request]);
 }
 
 static int ofs_fs_handler(void *data) {
@@ -31,6 +32,7 @@ static int ofs_fs_handler(void *data) {
 	struct ofs_fs_request *req= (struct ofs_fs_request *)data;
 	request = req->request;
 	filename = req->filename;
+	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request]);
 	switch (request) {
 		case OFS_MKDIR:
 			ofs_mkdir(filename, 0777);
@@ -43,6 +45,8 @@ static int ofs_fs_handler(void *data) {
 			ofs_read_handler(req);
 			break;
 		case OFS_WRITE:
+			ofs_write_handler(req);
+			break;
 		case OFS_FSYNC:
 			ofs_fsync_handler(req);
 			break;
@@ -52,7 +56,6 @@ static int ofs_fs_handler(void *data) {
 	ofs_switch_resume(&ofs_res);
 	return 0;
 }
-
 
 int ofs_handle_fs_msg(struct ofs_msg *msg) {
 	struct ofs_fs_request *req;

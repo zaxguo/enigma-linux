@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/slab.h> 
+#include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/fcntl.h>
 #include <linux/file.h>
@@ -405,10 +405,12 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 	int retval = -EINVAL;
 
 	inode = file_inode(file);
-	if (unlikely((ssize_t) count < 0))
+	if (unlikely((ssize_t) count < 0)) {
 		return retval;
+	}
 	pos = *ppos;
 	if (unlikely(pos < 0)) {
+		printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 		if (!unsigned_offsets(file))
 			return retval;
 		if (count >= -pos) /* both values are in 0..LLONG_MAX */
@@ -421,9 +423,12 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 	if (unlikely(inode->i_flctx && mandatory_lock(inode))) {
 		retval = locks_mandatory_area(inode, file, pos, pos + count - 1,
 				read_write == READ ? F_RDLCK : F_WRLCK);
-		if (retval < 0)
+		if (retval < 0) {
+			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 			return retval;
+		}
 	}
+	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	return security_file_permission(file,
 				read_write == READ ? MAY_READ : MAY_WRITE);
 }
@@ -564,6 +569,8 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 		}
 		inc_syscw(current);
 		file_end_write(file);
+	} else {
+		printk("lwg:%s:failed, err = %ld\n", __func__, ret);
 	}
 
 	return ret;
@@ -647,7 +654,7 @@ SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf,
 	f = fdget(fd);
 	if (f.file) {
 		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PWRITE)  
+		if (f.file->f_mode & FMODE_PWRITE)
 			ret = vfs_write(f.file, buf, count, &pos);
 		fdput(f);
 	}

@@ -18,6 +18,7 @@ int ofs_read(int fd, char *buf, int count) {
 EXPORT_SYMBOL(ofs_read);
 
 int ofs_fsync(int fd) {
+	printk("lwg:%s:%d:entered\n", __func__, __LINE__);
 	return sys_syncfs(fd);
 }
 EXPORT_SYMBOL(ofs_fsync);
