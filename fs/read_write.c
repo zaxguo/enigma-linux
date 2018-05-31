@@ -406,6 +406,7 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 
 	inode = file_inode(file);
 	if (unlikely((ssize_t) count < 0)) {
+		printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 		return retval;
 	}
 	pos = *ppos;
@@ -428,7 +429,6 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 			return retval;
 		}
 	}
-	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	return security_file_permission(file,
 				read_write == READ ? MAY_READ : MAY_WRITE);
 }
@@ -569,10 +569,7 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 		}
 		inc_syscw(current);
 		file_end_write(file);
-	} else {
-		printk("lwg:%s:failed, err = %ld\n", __func__, ret);
 	}
-
 	return ret;
 }
 

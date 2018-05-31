@@ -58,12 +58,13 @@ int ofs_read(int fd, char *buf, int count) {
 }
 
 
-static int _ofs_write(struct file* filp, loff_t offset, char *buf, int count) {
+static int _ofs_write(struct file* filp, char *buf, int count, loff_t pos) {
 	int len = 0;
 	if (!IS_ERR(filp)) {
-		len = kernel_write(filp, offset, buf, count);
+		len = kernel_write(filp, buf, count, pos);
 		if (len < 0) goto err;
 		printk("lwg:%s:%d:write file ino = [%lu], [%d] bytes\n", __func__, __LINE__, filp->f_inode->i_ino, len);
+		return len;
 	}
 err:
 	printk("lwg:%s:%d:WRITE FAULT err code = [%d]\n", __func__, __LINE__, len);
@@ -75,7 +76,7 @@ int ofs_write(int fd, char *buf, int count) {
 	int len;
 	struct file *filp = ofs_fget(fd);
 	loff_t pos = filp->f_pos;
-	len = _ofs_write(filp, pos, buf, count);
+	len = _ofs_write(filp, buf, count, pos);
 	if (len) {
 		/* read successful update pos */
 		filp->f_pos = pos + len;
@@ -91,8 +92,8 @@ int ofs_read_handler(void *data) {
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	fd = req->fd;
 	count = req->count;
-	printk("lwg:%s:%d:read [%d] for [%d]\n", __func__, __LINE__, fd, count);
 	count = ofs_read(fd, buf, count);
+	printk("lwg:%s:%d:read [%d] ==> [%s]\n", __func__, __LINE__, fd, buf);
 	msg = requests_to_msg(req, fs_request);
 	ofs_read_response(msg, count);
 	ofs_res.a3 = return_thread;
@@ -101,7 +102,7 @@ int ofs_read_handler(void *data) {
 
 int ofs_write_handler(void *data) {
 	int fd, count;
-	char buf[20]; /* random number */
+	char buf[20] = "xxxxxxxxxxxxxxxxxx"; /* random number */
 	struct ofs_msg *msg;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	fd = req->fd;

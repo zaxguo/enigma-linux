@@ -82,7 +82,7 @@
 /* TODO: put ofs_tee into a common header */
 #include <linux/tee_drv.h>
 #include <ofs/ofs_util.h>
-extern struct tee_device *ofs_tee; 
+extern struct tee_device *ofs_tee;
 
 static DEFINE_IDR(loop_index_idr);
 static DEFINE_MUTEX(loop_index_mutex);
@@ -128,13 +128,13 @@ static int xor_init(struct loop_device *lo, const struct loop_info64 *info)
 
 static struct loop_func_table none_funcs = {
 	.number = LO_CRYPT_NONE,
-}; 
+};
 
 static struct loop_func_table xor_funcs = {
 	.number = LO_CRYPT_XOR,
 	.transfer = transfer_xor,
 	.init = xor_init
-}; 
+};
 
 /* xfer_funcs[0] is special - its release function is never called */
 static struct loop_func_table *xfer_funcs[MAX_LO_CRYPT] = {
@@ -292,6 +292,8 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 	int ret = 0;
 
 	rq_for_each_segment(bvec, rq, iter) {
+		sector_t blocknr = blk_rq_pos(rq);
+		printk("lwg:%s:%d:write [%llx]\n", __func__, __LINE__, blocknr);
 		ret = lo_write_bvec(lo->lo_backing_file, &bvec, &pos);
 		if (ret < 0)
 			break;

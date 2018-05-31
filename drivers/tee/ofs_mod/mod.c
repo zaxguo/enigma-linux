@@ -94,7 +94,9 @@ static int ofs_tee_open(struct tee_device *tee) {
 static int ofs_handle_msg(struct ofs_msg *msg) {
 	int opcode = msg->op;
 	int rc;
+#ifdef OFS_DEBUG
 	printk("lwg:%s:opcode = %d\n", __func__, opcode);
+#endif
 	switch (opcode) {
 		case OFS_FS_REQUEST:
 			rc = ofs_handle_fs_msg(msg);
@@ -286,7 +288,7 @@ static void test(void) {
  * op =
  * 1: kickstart benchmark
  * other: debugging different facilities */
-static ssize_t ofs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+static ssize_t ofs_proc_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
 	int op = 0;
 	char ops[128];
 	struct task_struct *tsk;
@@ -352,7 +354,7 @@ static int ofs_file_open(struct inode *inode, struct file *filp) {
 static const struct file_operations ofs_procfs_ops = {
 	/* note that an open must correspond to one release, vice versa. Otherwise bad things will happen  */
 	.open  = ofs_file_open,
-	.write = ofs_write,
+	.write = ofs_proc_write,
 	.read = seq_read,
 	.release = seq_release,
 };

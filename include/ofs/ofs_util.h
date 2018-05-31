@@ -1,7 +1,6 @@
 #ifndef OFS_UTIL_H
 #define OFS_UTIL_H
 
-#define OFS_DEBUG 1
 
 #include <linux/tee_drv.h>
 #include <linux/arm-smccc.h>
@@ -93,7 +92,7 @@ static inline void ofs_tag_address_space(struct address_space *mapping) {
 static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
 #ifdef OFS_DEBUG
-	printk("lwg:%s:[%08x]:[%08x]\n", __func__, callid, (unsigned int)shm_pa);
+	// printk("lwg:%s:[%08x]:[%08x]\n", __func__, callid, (unsigned int)shm_pa);
 #endif
 	param.a0 = callid;
 	switch(callid) {
