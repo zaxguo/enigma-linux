@@ -266,7 +266,6 @@ static int lo_write_bvec(struct file *file, struct bio_vec *bvec, loff_t *ppos)
 {
 	struct iov_iter i;
 	ssize_t bw;
-
 	iov_iter_bvec(&i, ITER_BVEC, bvec, 1, bvec->bv_len);
 
 	file_start_write(file);
@@ -289,17 +288,44 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 {
 	struct bio_vec bvec;
 	struct req_iterator iter;
+	/* used by OFS */
+	struct tee_shm *shm;
+	struct tee_context *ctx;
+	phys_addr_t pa;
+	void *va;
+	sector_t blocknr;
+	struct iov_iter i;
+	ssize_t bw;
+	struct super_block *sb = lo->lo_device->bd_super;
+	int is_init = is_ofs_init(sb);
 	int ret = 0;
 
+	if (is_init) {
+		shm = alloc_ofs_shm(ctx,  bvec.bv_len);
+		BUG_ON(!shm);
+		tee_shm_get_pa(shm, 0, &pa);
+		BUG_ON(pa == 0);
+		printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa);
+		va = tee_shm_get_va(shm, 0);
+	}
+
 	rq_for_each_segment(bvec, rq, iter) {
-		sector_t blocknr = blk_rq_pos(rq);
-		printk("lwg:%s:%d:write [%llx]\n", __func__, __LINE__, blocknr);
+		if (is_init) {
+			iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
+			bw = copy_from_iter(va, bvec.bv_len, &i);
+			blocknr = blk_rq_pos(rq);
+			smp_wmb();
+			ofs_blk_write_from_pa(blocknr, pa);
+			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa);
+			ofs_dump_8b(va);
+			tee_shm_free(shm);
+			continue;
+		}
 		ret = lo_write_bvec(lo->lo_backing_file, &bvec, &pos);
 		if (ret < 0)
 			break;
 		cond_resched();
 	}
-
 	return ret;
 }
 
@@ -345,26 +371,27 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	struct req_iterator iter;
 	struct iov_iter i;
 	ssize_t len;
-	struct super_block *sb;
 	struct tee_shm *shm;
 	struct tee_context *ctx;
 	struct ofs_msg *msg;
 	phys_addr_t pa;
 	void *va;
-	int is_init = 0;
 	int j;
+	struct super_block *sb;
+	int is_init = 0;
 	sb = lo->lo_device->bd_super;
-	if (sb) {
-		is_init = sb->s_flags & MS_OFS;
-		if (is_init)  {
-			printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__);
-			shm = alloc_ofs_shm(ctx,  bvec.bv_len);
-			BUG_ON(!shm);
-			tee_shm_get_pa(shm, 0, &pa);
-			BUG_ON(pa == 0);
-			printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa);
-			va = tee_shm_get_va(shm, 0);
-		}
+	is_init = is_ofs_init(sb);
+
+	if (is_init) {
+		/* is_init = sb->s_flags & MS_OFS; */
+		printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__);
+		/* note this ctx is not freed */
+		shm = alloc_ofs_shm(ctx,  bvec.bv_len);
+		BUG_ON(!shm);
+		tee_shm_get_pa(shm, 0, &pa);
+		BUG_ON(pa == 0);
+		printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa);
+		va = tee_shm_get_va(shm, 0);
 	}
 
 	rq_for_each_segment(bvec, rq, iter) {
@@ -376,14 +403,6 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			smp_wmb();
 			tee_shm_free(shm);
 			goto ofs_read_done;
-#if DEBUG
-			printk("lwg:%s:%d:dump a few bytes...\n", __func__, __LINE__);
-			byte = va;
-			for (j = 0; j < 8; j++) {
-				printk("[%02x] ", *(byte + j));
-			}
-			printk("\n");
-#endif
 		}
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
 ofs_read_done:

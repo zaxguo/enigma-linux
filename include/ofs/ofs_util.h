@@ -25,6 +25,17 @@ extern struct tee_device *ofs_tee;
 extern struct arm_smccc_res ofs_res;
 extern unsigned long return_thread;
 
+static inline void ofs_dump_8b(void *va) {
+	uint8_t *byte;
+	int j;
+	byte = va;
+	printk("lwg:%s:%d:dump a few bytes...\n", __func__, __LINE__);
+	for (j = 0; j < 8; j++) {
+		printk("[%02x] ", *(byte + j));
+	}
+	printk("\n");
+}
+
 static inline void ofs_prep_fs_response(struct ofs_msg *msg, int op, int fd, int blocknr, phys_addr_t pa, int rw) {
 	msg->op = op;
 	msg->msg.fs_response.fd = fd;
@@ -211,6 +222,18 @@ static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int
 	msg->msg.fs_response.pa = pa;
 }
 
+static inline void ofs_blk_read_write(sector_t block, phys_addr_t pa, int rw) {
+	struct ofs_msg *msg;
+	phys_addr_t shm_pa;
+	int rc;
+	msg = recv_ofs_msg(ofs_shm);
+	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
+	WARN_ON(!msg);
+	WARN_ON(!pa);
+	ofs_prep_blk_request(msg, block, rw, pa);
+	ofs_switch_begin(shm_pa, &ofs_res);
+}
+
 static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
 	struct ofs_msg *msg;
 	phys_addr_t shm_pa;
@@ -223,11 +246,22 @@ static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
+static inline void ofs_blk_write_from_pa(sector_t block, phys_addr_t pa) {
+	return ofs_blk_read_write(block, pa, OFS_BLK_WRITE);
+}
+
 /* dummy, does not do world switch in this */
 static inline void ofs_blk_read(struct ofs_msg *msg, sector_t block) {
 	return ofs_prep_blk_request(msg, block, OFS_BLK_READ, 0);
 }
 
+static inline int is_ofs_init(struct super_block *sb) {
+	int ret = 0;
+	if (sb) {
+		ret = sb->s_flags & MS_OFS;
+	}
+	return ret;
+}
 
 
 
