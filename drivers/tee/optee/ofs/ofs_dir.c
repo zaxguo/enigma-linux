@@ -5,9 +5,9 @@ int ofs_mkdir(const char *path, int mode) {
 }
 EXPORT_SYMBOL(ofs_mkdir);
 
-int ofs_open(const char *path, int mode) {
-	printk("lwg:%s:%d:entered\n", __func__, __LINE__);
-	return sys_open(path, O_RDWR, 0);
+int ofs_open(const char *path, int flags) {
+	printk("lwg:%s:%d:entered, flags = %x, O_RDWR = %x\n", __func__, __LINE__, flags, O_RDWR);
+	return sys_open(path, flags, 0);
 }
 EXPORT_SYMBOL(ofs_open);
 

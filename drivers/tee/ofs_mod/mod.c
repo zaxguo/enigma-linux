@@ -46,6 +46,7 @@ extern int	ofs_mkdir(const char *, int);
 extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
 
+struct page *write_buf;
 unsigned long return_thread = 0;
 
 struct files_struct ofs_files = {
@@ -372,6 +373,16 @@ static int init_ofs_procfs(void) {
 	return 0;
 }
 
+static void init_rw_buf(void) {
+	void *addr;
+	write_buf = alloc_page(GFP_KERNEL);
+	addr = kmap_atomic(write_buf);
+	memset(addr, 0x63, PAGE_SIZE);
+	kunmap_atomic(addr);
+	printk("read/write buf initialized!\n");
+}
+
+
 static int __init ofs_init(void)
 {
 	struct tee_context *ctx;
@@ -380,6 +391,7 @@ static int __init ofs_init(void)
 
 	/* Init */
 	init_ofs_procfs();
+	init_rw_buf();
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
 		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);

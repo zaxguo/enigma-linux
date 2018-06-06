@@ -6,6 +6,8 @@
 #include "ofs_syscall.h"
 #include <ofs/ofs_util.h>
 
+extern struct page* write_buf;
+
 static inline struct file *ofs_fget(int fd) {
 	return fcheck_files(&ofs_files, fd);
 }
@@ -87,7 +89,7 @@ int ofs_write(int fd, char *buf, int count) {
 
 int ofs_read_handler(void *data) {
 	int fd, count;
-	char buf[20]; /* random number */
+	char buf[1024]; /* random number */
 	struct ofs_msg *msg;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	fd = req->fd;
@@ -102,16 +104,20 @@ int ofs_read_handler(void *data) {
 
 int ofs_write_handler(void *data) {
 	int fd, count;
-	char buf[20] = "xxxxxxxxxxxxxxxxxx"; /* random number */
+	/* char buf[20] = "xxxxxxxxxxxxxxxxxx"; [> random number <] */
+	void *buf;
 	struct ofs_msg *msg;
+	uint8_t *b;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
+	buf = kmap_atomic(write_buf);
 	fd = req->fd;
 	count = req->count;
-	printk("lwg:%s:%d:write [%d] for [%d]\n", __func__, __LINE__, fd, count);
+	printk("lwg:%s:%d:write [%d] bytes to [%d]\n", __func__, __LINE__, count, fd);
 	count = ofs_write(fd, buf, count);
 	msg = requests_to_msg(req, fs_request);
 	ofs_write_response(msg, count);
 	ofs_res.a3 = return_thread;
+	kunmap_atomic(buf);
 	return count;
 }
 

@@ -1,0 +1,7 @@
+#ifndef BENCHMARK_CONFIG_H
+#define BENCHMARK_CONFIG_H
+
+#define READ_SIZE	1024
+#define WRITE_SIZE	1024
+
+#endif

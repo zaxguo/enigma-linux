@@ -18,11 +18,14 @@ static inline void ofs_fsync_response(struct ofs_msg *msg, int count) {
 
 int ofs_open_handler(void *data) {
 	char buf[15];
-	int len;
+	int len, flag, fd;
 	struct ofs_msg *msg;
 	struct file *file;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
-	int fd = ofs_open(req->filename, 0666);
+	flag = req->flag;
+	/* fd = ofs_open(req->filename, 0666); */
+	fd = ofs_open(req->filename, flag);
+	printk("%s:%d:flag = %x\n", __func__, __LINE__, flag);
 	file = fget(fd);
 	if (IS_ERR(file)) {
 		printk("lwg:%s:%d:ERROR, no file pointer\n", __func__, __LINE__);
