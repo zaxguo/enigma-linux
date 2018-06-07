@@ -3,6 +3,7 @@
 #include <linux/file.h>
 #include <linux/kernel.h>
 #include <linux/fdtable.h>
+#include <linux/delay.h>
 #include "ofs_syscall.h"
 
 #define OFS_FD 0
@@ -12,11 +13,11 @@ static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, fd, -1, -1, -1);
 	printk("lwg:%s:%d:complete fd = [%d]\n", __func__, __LINE__, msg->msg.fs_response.fd);
 }
+
 static inline void ofs_fsync_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
-
 
 int ofs_open_handler(void *data) {
 	char buf[15];
@@ -28,6 +29,7 @@ int ofs_open_handler(void *data) {
 	fd = OFS_FD;
 	/* ofs_open does not work properly with kernel space open, fallback to this */
 	file = filp_open(req->filename, flag, 0600);
+	set_ofs_file(file);
 	/* file = fget(fd); */
 	if (!file) {
 		printk("lwg:%s:%d:ERROR, no file pointer\n", __func__, __LINE__);

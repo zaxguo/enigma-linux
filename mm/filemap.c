@@ -1237,10 +1237,12 @@ repeat:
 		mark_page_accessed(page);
 
 no_page:
+
+#if 0
 	if (is_ofs_address_space(mapping)) {
 		printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL);
 	}
-
+#endif
 
 	if (!page && (fgp_flags & FGP_CREAT)) {
 		int err;
@@ -1258,11 +1260,11 @@ no_page:
 		if (is_mapping_ofs_fs(mapping)) {
 			printk("%s:%d:XXXXXXXXXX\n", __func__, __LINE__);
 		}
-#endif
 		if (is_ofs_address_space(mapping)) {
 			printk("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 			ofs_pg_request(offset, 0x1);
 		}
+#endif
 
 		if (WARN_ON_ONCE(!(fgp_flags & FGP_LOCK)))
 			fgp_flags |= FGP_LOCK;
@@ -1754,9 +1756,11 @@ find_page:
 					ra, filp,
 					index, last_index - index);
 			page = find_get_page(mapping, index);
+#if 0
 			if (is_ofs_address_space(mapping)) {
 				printk("lwg:%s:%d:page NUll == %d\n", __func__, __LINE__, page == NULL);
 			}
+#endif
 
 
 			if (unlikely(page == NULL)) {
@@ -1941,9 +1945,11 @@ no_cached_page:
 		 * Ok, it wasn't cached, so we need to create a new
 		 * page..
 		 */
+#if 0
 		if (is_ofs_address_space(mapping)) {
 			printk("lwg:%s:%d:entered...dealing with ofs page cache\n", __func__, __LINE__);
 		}
+#endif
 
 
 		page = page_cache_alloc_cold(mapping);
@@ -2795,16 +2801,29 @@ again:
 			status = -EINTR;
 			break;
 		}
+		if (mapping) {
+			if (test_bit(AS_OFS, &mapping->flags)) {
+				printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+			}
+		}
 
 		status = a_ops->write_begin(file, mapping, pos, bytes, flags,
 						&page, &fsdata);
+
+		if (mapping) {
+			if (test_bit(AS_OFS, &mapping->flags)) {
+				printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+			}
+		}
 		if (unlikely(status < 0))
 			break;
 
 		if (mapping_writably_mapped(mapping))
 			flush_dcache_page(page);
 
+		/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
+		/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 		flush_dcache_page(page);
 
 		status = a_ops->write_end(file, mapping, pos, bytes, copied,

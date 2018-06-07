@@ -103,13 +103,18 @@ int ofs_read_handler(void *data) {
 }
 
 int ofs_write_handler(void *data) {
+	if (in_atomic()) {
+		WARN_ON(1);
+		return 0;
+	}
 	int fd, count;
 	/* char buf[20] = "xxxxxxxxxxxxxxxxxx"; [> random number <] */
 	void *buf;
 	struct ofs_msg *msg;
 	uint8_t *b;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
-	buf = kmap_atomic(write_buf);
+	/* set to be non-preemptible, while ext2_get_block in ofs_write will sleep ! */
+	buf = kmap(write_buf);
 	fd = req->fd;
 	count = req->count;
 	printk("lwg:%s:%d:write [%d] bytes to [%d]\n", __func__, __LINE__, count, fd);
@@ -117,7 +122,7 @@ int ofs_write_handler(void *data) {
 	msg = requests_to_msg(req, fs_request);
 	ofs_write_response(msg, count);
 	ofs_res.a3 = return_thread;
-	kunmap_atomic(buf);
+	kunmap(buf);
 	return count;
 }
 
