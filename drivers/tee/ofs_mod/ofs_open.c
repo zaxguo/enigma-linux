@@ -5,6 +5,8 @@
 #include <linux/fdtable.h>
 #include "ofs_syscall.h"
 
+#define OFS_FD 0
+
 /* TODO: refactor for code reuse */
 static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, fd, -1, -1, -1);
@@ -23,11 +25,11 @@ int ofs_open_handler(void *data) {
 	struct file *file;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	flag = req->flag;
-	/* fd = ofs_open(req->filename, 0666); */
-	fd = ofs_open(req->filename, flag);
-	printk("%s:%d:flag = %x\n", __func__, __LINE__, flag);
-	file = fget(fd);
-	if (IS_ERR(file)) {
+	fd = OFS_FD;
+	/* ofs_open does not work properly with kernel space open, fallback to this */
+	file = filp_open(req->filename, flag, 0600);
+	/* file = fget(fd); */
+	if (!file) {
 		printk("lwg:%s:%d:ERROR, no file pointer\n", __func__, __LINE__);
 	}
 	__fd_install(&ofs_files, fd, file);
