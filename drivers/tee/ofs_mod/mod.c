@@ -31,6 +31,7 @@
 #include <ofs/ofs_util.h>  /* some utility functions */
 #include <ofs/ofs_opcode.h>
 #include "ofs_handler.h"
+#include "ofs_net.h"
 #include <linux/dma-mapping.h>
 #include "ofs_syscall.h"
 
@@ -415,6 +416,11 @@ static int __init ofs_init(void)
 	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
+
+
+	ofs_network_client_init();
+
+
 	return 0;
 }
 
