@@ -2092,7 +2092,7 @@ int block_write_begin(struct address_space *mapping, loff_t pos, unsigned len,
 	int status;
 
 	if (is_ofs_address_space(mapping)) {
-		printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+		/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 	}
 	page = grab_cache_page_write_begin(mapping, index, flags);
 	if (!page)
@@ -2102,10 +2102,10 @@ int block_write_begin(struct address_space *mapping, loff_t pos, unsigned len,
 		printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
 	}
 
-	/* May sleep! */
+	/* lwg: May sleep! */
 	status = __block_write_begin(page, pos, len, get_block);
 	if (is_ofs_address_space(mapping)) {
-		printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+		/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 	}
 
 	if (unlikely(status)) {

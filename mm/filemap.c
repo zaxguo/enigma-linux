@@ -2803,7 +2803,7 @@ again:
 		}
 		if (mapping) {
 			if (test_bit(AS_OFS, &mapping->flags)) {
-				printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+				/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 			}
 		}
 
@@ -2812,7 +2812,7 @@ again:
 
 		if (mapping) {
 			if (test_bit(AS_OFS, &mapping->flags)) {
-				printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+				/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 			}
 		}
 		if (unlikely(status < 0))

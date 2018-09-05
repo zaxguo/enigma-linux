@@ -118,6 +118,7 @@ int ofs_write_handler(void *data) {
 	fd = req->fd;
 	count = req->count;
 	printk("lwg:%s:%d:write [%d] bytes to [%d]\n", __func__, __LINE__, count, fd);
+	memset(buf, 0x63, count); /* dummy data */
 	count = ofs_write(fd, buf, count);
 	msg = requests_to_msg(req, fs_request);
 	ofs_write_response(msg, count);

@@ -1,6 +1,7 @@
 #ifndef OFS_MSG_H
 #define OFS_MSG_H
 #include <linux/types.h>
+#include <linux/kernel.h>
 
 
 extern unsigned long return_thread;
@@ -64,6 +65,13 @@ struct ofs_msg {
 /* helper function */
 #define requests_to_msg(req, name) \
 	container_of(req, struct ofs_msg, msg.name)
+
+static inline int serialize_ofs_fs_ops(struct ofs_fs_request *req, char *buf) {
+	return sprintf(buf, "{\"req\":%d,\"flag\":%d,\"name\":%s,\", \"fd\":%d, count\":%d}", req->request,
+			req->flag, req->filename, req->fd, req->count);
+}
+
+
 
 int ofs_fs_request_alloc(struct ofs_fs_request *);
 struct ofs_msg *ofs_msg_alloc(void);

@@ -1,14 +1,6 @@
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/init.h>
-
-#include <linux/net.h>
-#include <net/sock.h>
-#include <linux/tcp.h>
-#include <linux/in.h>
-#include <asm/uaccess.h>
-#include <linux/socket.h>
+#include <ofs/ofs_net.h>
 #include <linux/slab.h>
+#include <ofs/ofs_msg.h>
 
 
 #define PORT 2325
@@ -16,6 +8,7 @@
 struct socket *conn_socket = NULL;
 
 unsigned char destip[5] = {10,42,1,1,'\0'}; /* fortwayne USB IP addr */
+
 
 u32 create_address(u8 *ip)
 {
@@ -32,7 +25,7 @@ u32 create_address(u8 *ip)
         return addr;
 }
 
-int tcp_client_send(struct socket *sock, const char *buf, const size_t length,\
+static int tcp_client_send(struct socket *sock, const char *buf, const size_t length,\
                 unsigned long flags)
 {
         struct msghdr msg;
@@ -76,7 +69,7 @@ repeat_send:
         return written ? written:len;
 }
 
-int tcp_client_receive(struct socket *sock, char *str,\
+static int tcp_client_receive(struct socket *sock, char *str,\
                         unsigned long flags)
 {
         //mm_segment_t oldmm;
@@ -121,7 +114,7 @@ read_again:
         return len;
 }
 
-int tcp_client_connect(void)
+static int tcp_client_connect(void)
 {
         struct sockaddr_in saddr;
         /*
@@ -196,10 +189,39 @@ err:
         return -1;
 }
 
+
+static void test_ofs_client_send(void) {
+	struct ofs_fs_request tmp = {
+		.request = OFS_OPEN,
+		.count = 10,
+		.fd = 0,
+		.filename = "/mnt/ext2/test.txt"
+	};
+	int ret;
+	char *fs_op = kmalloc(MAX_FILENAME, GFP_KERNEL);
+	ret = serialize_ofs_fs_ops(&tmp, fs_op);
+	pr_info("lwg: testing ofs fs op send...\n");
+	pr_info("lwg: sending [%s]..\n", fs_op);
+	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
+	kfree(fs_op);
+}
+
+int ofs_fs_send(struct ofs_fs_request *req) {
+	int ret;
+	char *fs_op = kmalloc(MAX_FILENAME, GFP_KERNEL);
+	ret = serialize_ofs_fs_ops(req, fs_op);
+	pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op);
+	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
+	kfree(fs_op);
+}
+
+
+
 int ofs_network_client_init(void)
 {
         pr_info(" *** mtp | network client init | network_client_init *** \n");
         tcp_client_connect();
+		test_ofs_client_send();
         return 0;
 }
 
