@@ -213,6 +213,8 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 	pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op);
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	kfree(fs_op);
+	/* expecting to see the response from the cloud */
+
 }
 
 
