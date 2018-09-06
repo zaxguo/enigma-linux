@@ -67,8 +67,13 @@ struct ofs_msg {
 	container_of(req, struct ofs_msg, msg.name)
 
 static inline int serialize_ofs_fs_ops(struct ofs_fs_request *req, char *buf) {
-	return sprintf(buf, "{\'req\':%d,\'flag\':%d,\'name\':\"%s\",\'fd\':%d,\'count\':%d}", req->request,
-			req->flag, req->filename, req->fd, req->count);
+	/* only open has filename */
+	if (req->request == OFS_OPEN) {
+		return sprintf(buf, "{\'req\':%d,\'flag\':%d,\'name\':\"%s\",\'fd\':%d,\'count\':%d}",
+				req->request,req->flag, req->filename, req->fd, req->count);
+	}
+	return sprintf(buf, "{\'req\':%d,\'flag\':%d,\'name\':\"\",\'fd\':%d,\'count\':%d}",
+				req->request,req->flag, req->fd, req->count);
 }
 
 

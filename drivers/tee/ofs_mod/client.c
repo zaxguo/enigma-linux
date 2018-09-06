@@ -223,7 +223,7 @@ int ofs_network_client_init(void)
 {
         pr_info(" *** mtp | network client init | network_client_init *** \n");
         tcp_client_connect();
-		test_ofs_client_send();
+		/* test_ofs_client_send(); */
         return 0;
 }
 
