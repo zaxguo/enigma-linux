@@ -217,6 +217,7 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 
 static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int rw, phys_addr_t pa) {
 	msg->op = OFS_BLK_REQUEST;
+	/* TODO: extend this to a list batch them..? */
 	msg->msg.fs_response.blocknr = block;
 	msg->msg.fs_response.rw = rw;
 	msg->msg.fs_response.pa = pa;
@@ -262,8 +263,6 @@ static inline int is_ofs_init(struct super_block *sb) {
 	}
 	return ret;
 }
-
-
 
 
 #endif /* OFS_UTIL_H */

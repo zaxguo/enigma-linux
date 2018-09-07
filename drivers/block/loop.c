@@ -79,9 +79,12 @@
 #include "loop.h"
 
 #include <asm/uaccess.h>
-/* TODO: put ofs_tee into a common header */
+/* TODO: put ofs-related global data structures into one file and
+ * ofs_tee into a common header */
 #include <linux/tee_drv.h>
 #include <ofs/ofs_util.h>
+#include <ofs/ofs_net.h>
+#include <linux/list.h>
 extern struct tee_device *ofs_tee;
 
 static DEFINE_IDR(loop_index_idr);
@@ -89,6 +92,10 @@ static DEFINE_MUTEX(loop_index_mutex);
 
 static int max_part;
 static int part_shift;
+
+/* lwg: OFS server bio list */
+LIST_HEAD(ofs_cloud_bio_list);
+EXPORT_SYMBOL(ofs_cloud_bio_list);
 
 static int transfer_xor(struct loop_device *lo, int cmd,
 			struct page *raw_page, unsigned raw_off,
@@ -305,19 +312,20 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 		BUG_ON(!shm);
 		tee_shm_get_pa(shm, 0, &pa);
 		BUG_ON(pa == 0);
-		printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa);
+		/* printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa); */
 		va = tee_shm_get_va(shm, 0);
 	}
 
 	rq_for_each_segment(bvec, rq, iter) {
 		if (is_init) {
 			iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
+			/* lwg: copy to shm */
 			bw = copy_from_iter(va, bvec.bv_len, &i);
 			blocknr = blk_rq_pos(rq);
 			smp_wmb();
 			ofs_blk_write_from_pa(blocknr, pa);
 			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa);
-			ofs_dump_8b(va);
+			/* ofs_dump_8b(va); */
 			tee_shm_free(shm);
 			continue;
 		}
@@ -359,7 +367,6 @@ static int lo_write_transfer(struct loop_device *lo, struct request *rq,
 		if (ret < 0)
 			break;
 	}
-
 	__free_page(page);
 	return ret;
 }
@@ -384,13 +391,13 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 
 	if (is_init) {
 		/* is_init = sb->s_flags & MS_OFS; */
-		printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__);
+		/* printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__); */
 		/* note this ctx is not freed */
 		shm = alloc_ofs_shm(ctx,  bvec.bv_len);
 		BUG_ON(!shm);
 		tee_shm_get_pa(shm, 0, &pa);
 		BUG_ON(pa == 0);
-		printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa);
+		/* printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa); */
 		va = tee_shm_get_va(shm, 0);
 	}
 
@@ -398,6 +405,8 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
 		/* directly change this to use data from secure world */
 		if (is_init) {
+			sector_t blocknr = blk_rq_pos(rq);
+			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa);
 			ofs_blk_read_to_pa(blk_rq_pos(rq), pa);
 			len = copy_to_iter(va, bvec.bv_len, &i);
 			smp_wmb();

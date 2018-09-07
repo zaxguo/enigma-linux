@@ -77,6 +77,7 @@ static int tcp_client_receive(struct socket *sock, char *str,\
         //struct iovec iov;
         struct kvec vec;
         int len;
+		int ret, blknr;
         int max_size = 50;
 
         msg.msg_name    = 0;
@@ -102,14 +103,16 @@ read_again:
 
         if(len == -EAGAIN || len == -ERESTARTSYS)
         {
-                pr_info(" *** mtp | error while reading: %d | "
-                        "tcp_client_receive *** \n", len);
-
+                /* pr_info(" *** mtp | error while reading: %d | " */
+                /*         "tcp_client_receive *** \n", len); */
                 goto read_again;
         }
-
-
-        pr_info(" *** mtp | the server says: %s | tcp_client_receive *** \n", str);
+        /* pr_info(" lwg: *** mtp | the server says: %s | tcp_client_receive *** \n", str); */
+		ret = sscanf(str,"%d", &blknr);
+		printk("lwg:%s:%d:receiving [%x]\n", __func__, __LINE__, blknr);
+		struct ofs_cloud_bio *bio = kmalloc(sizeof(struct ofs_cloud_bio), GFP_KERNEL);
+		bio->blk = blknr;
+		list_add(&bio->list, &ofs_cloud_bio_list);
         //set_fs(oldmm);
         return len;
 }
@@ -208,13 +211,19 @@ static void test_ofs_client_send(void) {
 
 int ofs_fs_send(struct ofs_fs_request *req) {
 	int ret;
+	char *reply = kmalloc(MAX_FILENAME, GFP_KERNEL);
 	char *fs_op = kmalloc(MAX_FILENAME, GFP_KERNEL);
+	memset(reply, 0x0, MAX_FILENAME);
 	ret = serialize_ofs_fs_ops(req, fs_op);
 	pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op);
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	kfree(fs_op);
 	/* expecting to see the response from the cloud */
-
+	ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT);
+	if (ret) {
+		printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply);
+		kfree(reply);
+	}
 }
 
 
