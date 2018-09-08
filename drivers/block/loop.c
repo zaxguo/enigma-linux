@@ -326,6 +326,7 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 			ofs_blk_write_from_pa(blocknr, pa);
 			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa);
 			/* ofs_dump_8b(va); */
+			/* TODO: consume the results returned by the cloud */
 			tee_shm_free(shm);
 			continue;
 		}

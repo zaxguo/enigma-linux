@@ -9,6 +9,7 @@
 
 struct ofs_cloud_bio {
 	int blk;
+	int rw;
 	struct list_head list;
 };
 
