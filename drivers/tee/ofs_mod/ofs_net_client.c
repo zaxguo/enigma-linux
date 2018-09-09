@@ -60,8 +60,7 @@ repeat_send:
         if((len == -ERESTARTSYS) || (!(flags & MSG_DONTWAIT) &&\
                                 (len == -EAGAIN)))
                 goto repeat_send;
-        if(len > 0 && (len != length))
-        {
+        if(len > 0 && (len != length)) {
 			printk("lwg:%s:%d:left overs!\n", __func__, __LINE__);
                 written += len;
                 left -= len;
@@ -80,7 +79,7 @@ static int tcp_client_receive(struct socket *sock, char *str,\
         //struct iovec iov;
         struct kvec vec;
         int len;
-		int ret, blknr;
+		int ret, blknr, rw;
         int max_size = 50;
 
         msg.msg_name    = 0;
@@ -102,7 +101,7 @@ static int tcp_client_receive(struct socket *sock, char *str,\
         //oldmm = get_fs(); set_fs(KERNEL_DS);
 read_again:
         //len = sock_recvmsg(sock, &msg, max_size, 0);
-        len = kernel_recvmsg(sock, &msg, &vec, max_size, max_size, flags);
+        len = kernel_recvmsg(sock, &msg, &vec, 1, max_size, flags);
 
         if(len == -EAGAIN || len == -ERESTARTSYS)
         {
@@ -110,9 +109,10 @@ read_again:
                 /*         "tcp_client_receive *** \n", len); */
                 goto read_again;
         }
-		printk("lwg: receiving %s \n", str);
-		ret = sscanf(str,"%d", &blknr);
-		printk("lwg:%s:%d:receiving [%x]\n", __func__, __LINE__, blknr);
+		printk("lwg:receiving %s\n", str);
+		/* TODO: parse multiple */
+		ret = sscanf(str,"%08x,%d ", &blknr, &rw);
+		printk("lwg:%s:%d:receiving [%08x, %d]\n", __func__, __LINE__, blknr, rw);
 		struct ofs_cloud_bio *bio = kmalloc(sizeof(struct ofs_cloud_bio), GFP_KERNEL);
 		bio->blk = blknr;
 		list_add(&bio->list, &ofs_cloud_bio_list);
@@ -171,7 +171,7 @@ static int tcp_client_connect(void)
         strcat(reply, "HOLA: OFS client initializing...\n");
         ret = tcp_client_send(conn_socket, reply, strlen(reply), MSG_DONTWAIT);
 		printk("lwg:%s:%d:sending out [%d] bytes\n", __func__, __LINE__, ret);
-
+        tcp_client_receive(conn_socket, response, MSG_DONTWAIT);
 #if 0
         wait_event_timeout(recv_wait,\
                         !skb_queue_empty(&conn_socket->sk->sk_receive_queue),\
@@ -217,8 +217,8 @@ static void test_ofs_client_send(void) {
 	char *fs_op = kmalloc(MAX_FILENAME, GFP_KERNEL);
 	/* tcp_client_send(conn_socket, "lwg testing 1", 36, MSG_DONTWAIT); [> this is as far as it goes... <] */
 	ret = serialize_ofs_fs_ops(&tmp, fs_op);
-	printk("lwg: testing ofs fs op send...\n");
-	printk("lwg: sending [%s]..\n", fs_op);
+	printk("lwg:testing ofs fs op send...\n");
+	printk("lwg:sending [%s]..\n", fs_op);
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	/* tcp_client_send(conn_socket, "lwg testing 2", 36, MSG_DONTWAIT); */
 	kfree(fs_op);
@@ -247,7 +247,7 @@ int ofs_network_client_init(void)
 {
 		printk("lwg:%s:init network client\n", __func__);
         tcp_client_connect();
-		test_ofs_client_send();
+		/* test_ofs_client_send(); */
         return 0;
 }
 
