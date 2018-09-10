@@ -60,6 +60,12 @@ static int ofs_fs_handler(void *data) {
 		default:
 			BUG();
 	}
+	/* Up to this point, all bio should be consumed already,
+	 * if not, destroy the bio list */
+	if (!list_empty(&ofs_cloud_bio_list)) {
+		printk("warning:%s:%d:why not consumed??\n", __func__, __LINE__);
+		ofs_cloud_bio_del_all();
+	}
 	ofs_switch_resume(&ofs_res);
 	return 0;
 }

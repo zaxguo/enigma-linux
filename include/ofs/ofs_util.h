@@ -96,7 +96,7 @@ static inline int is_mapping_ofs_fs(struct file *filp) {
 }
 
 static inline void ofs_tag_address_space(struct address_space *mapping) {
-	printk("lwg:%s:%d:....\n", __func__, __LINE__);
+	// printk("lwg:%s:%d:....\n", __func__, __LINE__);
 	set_bit(AS_OFS, &mapping->flags);
 }
 

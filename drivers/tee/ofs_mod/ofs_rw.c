@@ -65,7 +65,7 @@ static int _ofs_write(struct file* filp, char *buf, int count, loff_t pos) {
 	if (!IS_ERR(filp)) {
 		len = kernel_write(filp, buf, count, pos);
 		if (len < 0) goto err;
-		printk("lwg:%s:%d:write file ino = [%lu], [%d] bytes\n", __func__, __LINE__, filp->f_inode->i_ino, len);
+		/* printk("lwg:%s:%d:write file ino = [%lu], [%d] bytes\n", __func__, __LINE__, filp->f_inode->i_ino, len); */
 		return len;
 	}
 err:

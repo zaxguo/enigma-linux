@@ -3,13 +3,25 @@
 #include <ofs/ofs_msg.h>
 
 
-#define PORT 2325
+#define PORT		2325
+#define BUFSIZE		1024
 
 struct socket *conn_socket = NULL;
 
 /* unsigned char destip[5] = {10,42,1,1,'\0'}; [> fortwayne USB IP addr <] */
 unsigned char destip[5] = {128,46,76,40,'\0'}; /* fortwayne USB IP addr */
 
+
+int ofs_cloud_bio_del_all(void) {
+	struct list_head *pos, *q;
+	struct ofs_cloud_bio *tmp;
+	printk("%s:%d:deleting all entries in the list...\n", __func__, __LINE__);
+	list_for_each_safe(pos, q, &ofs_cloud_bio_list) {
+		tmp = list_entry(pos, struct ofs_cloud_bio, list);
+		list_del(pos);
+		kfree(tmp);
+	}
+}
 
 u32 create_address(u8 *ip)
 {
@@ -74,13 +86,13 @@ repeat_send:
 static int tcp_client_receive(struct socket *sock, char *str,\
                         unsigned long flags)
 {
-        //mm_segment_t oldmm;
         struct msghdr msg;
         //struct iovec iov;
         struct kvec vec;
         int len;
 		int ret, blknr, rw;
         int max_size = 50;
+		char *tok;
 
         msg.msg_name    = 0;
         msg.msg_namelen = 0;
@@ -98,7 +110,6 @@ static int tcp_client_receive(struct socket *sock, char *str,\
         vec.iov_len = max_size;
         vec.iov_base = str;
 
-        //oldmm = get_fs(); set_fs(KERNEL_DS);
 read_again:
         //len = sock_recvmsg(sock, &msg, max_size, 0);
         len = kernel_recvmsg(sock, &msg, &vec, 1, max_size, flags);
@@ -111,17 +122,27 @@ read_again:
         }
 		printk("lwg:receiving %s\n", str);
 		/* TODO: parse multiple */
-		ret = sscanf(str,"%08x,%d ", &blknr, &rw);
-		printk("lwg:%s:%d:receiving [%08x, %d]\n", __func__, __LINE__, blknr, rw);
-		struct ofs_cloud_bio *bio = kmalloc(sizeof(struct ofs_cloud_bio), GFP_KERNEL);
-		bio->blk = blknr;
-		list_add(&bio->list, &ofs_cloud_bio_list);
-        //set_fs(oldmm);
-		if (!list_empty(&ofs_cloud_bio_list)) {
-			struct ofs_cloud_bio *e;
-			list_for_each_entry(e, &ofs_cloud_bio_list, list) {
-				printk("lwg:%s:%d:blknr = %x\n", __func__, __LINE__, e->blk);
+		tok = strsep(&str, " ");
+		while(tok != NULL) {
+			printk("lwg:%s:%d:tok = %s\n", __func__, __LINE__, tok);
+			ret = sscanf(tok,"%08x,%d ", &blknr, &rw);
+			if (ret == 2) { /* block request */
+				struct ofs_cloud_bio *bio = kmalloc(sizeof(struct ofs_cloud_bio), GFP_KERNEL);
+				printk("lwg:%s:%d:receiving [%08x, %d]\n", __func__, __LINE__, blknr, rw);
+				bio->blk = blknr;
+				bio->rw  = rw;
+				/* TODO: protect the list */
+				list_add(&bio->list, &ofs_cloud_bio_list);
+				if (!list_empty(&ofs_cloud_bio_list)) {
+					struct ofs_cloud_bio *e;
+					list_for_each_entry(e, &ofs_cloud_bio_list, list) {
+						printk("lwg:%s:%d:blknr = %x\n", __func__, __LINE__, e->blk);
+					}
+				}
+			} else {
+				break;
 			}
+			tok = strsep(&str, " ");
 		}
         return len;
 }

@@ -2099,7 +2099,7 @@ int block_write_begin(struct address_space *mapping, loff_t pos, unsigned len,
 		return -ENOMEM;
 
 	if (is_ofs_address_space(mapping)) {
-		printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__);
+		/* printk(KERN_ERR"%s:%d:hit\n", __func__, __LINE__); */
 	}
 
 	/* lwg: May sleep! */

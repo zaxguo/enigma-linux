@@ -1198,19 +1198,19 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
 	struct page *page;
 
 	if (is_ofs_address_space(mapping)) {
-		printk("lwg:%s:%d:entered...dealing with ofs page cache\n", __func__, __LINE__);
+		/* printk("lwg:%s:%d:entered...dealing with ofs page cache\n", __func__, __LINE__); */
 	}
 repeat:
 
 	page = find_get_entry(mapping, offset);
 	if (is_ofs_address_space(mapping)) {
-		printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL);
+		/* printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL); */
 	}
 	if (radix_tree_exceptional_entry(page))
 		page = NULL;
 	if (!page) {
 		if (is_ofs_address_space(mapping)) {
-			printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL);
+			/* printk("lwg:%s:%d:entered...dealing with ofs page cache, page NULL = %d\n", __func__, __LINE__, page == NULL); */
 		}
 		goto no_page;
 	}
@@ -1721,7 +1721,7 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 
 	if(is_ofs_file(filp)) {
 		is_ofs = 1;
-#if 1
+#if 0
 		printk("lwg:%s:%d:caught an OFS file, ino = %lu\n",
 				__func__,
 				__LINE__,

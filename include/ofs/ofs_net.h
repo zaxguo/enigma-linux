@@ -15,4 +15,4 @@ struct ofs_cloud_bio {
 
 extern struct list_head ofs_cloud_bio_list;
 int ofs_fs_send(struct ofs_fs_request *req);
-
+int ofs_cloud_bio_del_all(void);

@@ -97,6 +97,26 @@ static int part_shift;
 LIST_HEAD(ofs_cloud_bio_list);
 EXPORT_SYMBOL(ofs_cloud_bio_list);
 
+
+/* verify and consume bio */
+static int ofs_verify_block(int blknr, int rw) {
+	struct ofs_cloud_bio *tmp;
+	struct list_head *pos, *q;
+	if (list_empty(&ofs_cloud_bio_list)) {
+		printk("%s:%d:!!! list empty!!!\n", __func__, __LINE__);
+		return -1;
+	}
+	list_for_each_safe(pos, q, &ofs_cloud_bio_list) {
+		tmp = list_entry(pos, struct ofs_cloud_bio, list);
+		if ((tmp->blk == blknr) && (tmp->rw == rw)) {
+			list_del(pos);
+			kfree(tmp);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static int transfer_xor(struct loop_device *lo, int cmd,
 			struct page *raw_page, unsigned raw_off,
 			struct page *loop_page, unsigned loop_off,
@@ -318,13 +338,15 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 
 	rq_for_each_segment(bvec, rq, iter) {
 		if (is_init) {
+			int ret = 0;
 			iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
 			/* lwg: copy to shm */
 			bw = copy_from_iter(va, bvec.bv_len, &i);
 			blocknr = blk_rq_pos(rq);
 			smp_wmb();
+			ret = ofs_verify_block((int)blocknr, OFS_BLK_WRITE);
 			ofs_blk_write_from_pa(blocknr, pa);
-			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa);
+			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			/* ofs_dump_8b(va); */
 			/* TODO: consume the results returned by the cloud */
 			tee_shm_free(shm);
@@ -406,8 +428,10 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
 		/* directly change this to use data from secure world */
 		if (is_init) {
+			int ret = 0;
 			sector_t blocknr = blk_rq_pos(rq);
-			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa);
+			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
+			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			ofs_blk_read_to_pa(blk_rq_pos(rq), pa);
 			len = copy_to_iter(va, bvec.bv_len, &i);
 			smp_wmb();
