@@ -160,6 +160,7 @@ static inline void ofs_switch(struct arm_smccc_res *res) {
 }
 
 static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
+	/* TODO: add locks */
 	return (struct ofs_msg *)shm->kaddr;
 }
 
@@ -171,6 +172,7 @@ static inline struct tee_shm *alloc_ofs_shm(struct tee_context *ctx, int size) {
 	return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
 }
 
+/* TODO: add locks */
 static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, phys_addr_t from, int request, int flag) {
 	msg->op = OFS_PG_REQUEST;
 	msg->msg.page_request.flag  = flag;
@@ -215,6 +217,7 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
+/* TODO: add locks */
 static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int rw, phys_addr_t pa) {
 	msg->op = OFS_BLK_REQUEST;
 	/* TODO: extend this to a list batch them..? */
@@ -235,6 +238,7 @@ static inline void ofs_blk_read_write(sector_t block, phys_addr_t pa, int rw) {
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
+/* TODO: add locks */
 static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
 	struct ofs_msg *msg;
 	phys_addr_t shm_pa;
@@ -247,6 +251,7 @@ static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
+/* TODO: add locks */
 static inline void ofs_blk_write_from_pa(sector_t block, phys_addr_t pa) {
 	return ofs_blk_read_write(block, pa, OFS_BLK_WRITE);
 }

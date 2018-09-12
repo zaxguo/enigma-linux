@@ -8,10 +8,6 @@
 
 extern struct page* write_buf;
 
-static inline struct file *ofs_fget(int fd) {
-	return fcheck_files(&ofs_files, fd);
-}
-
 static inline void ofs_read_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);

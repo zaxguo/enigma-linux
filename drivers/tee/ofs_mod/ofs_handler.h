@@ -9,6 +9,10 @@
 
 extern struct files_struct ofs_files;
 
+static inline struct file *ofs_fget(int fd) {
+	return fcheck_files(&ofs_files, fd);
+}
+
 int ofs_open_handler(void *);
 int ofs_read_handler(void *);
 int ofs_write_handler(void *);

@@ -5,6 +5,7 @@
 #include <linux/fdtable.h>
 #include <linux/delay.h>
 #include "ofs_syscall.h"
+#include "ofs_handler.h"
 
 #define OFS_FD 0
 
@@ -43,13 +44,21 @@ int ofs_open_handler(void *data) {
 	return 0;
 }
 
+
+static inline int _ofs_fsync(int fd) {
+	struct file *filp;
+	filp = ofs_fget(fd);
+	return vfs_fsync(filp, 0);
+}
+
 int ofs_fsync_handler(void *data) {
 	int fd, r;
 	struct ofs_msg *msg;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	fd = req->fd;
 	printk("lwg:%s:%d:fsync for [%d]\n", __func__, __LINE__, fd);
-	r = ofs_fsync(fd);
+	/* r = ofs_fsync(fd); */
+	r = _ofs_fsync(fd);
 	printk("lwg:%s:%d:ret = %d\n", __func__, __LINE__, r);
 	msg = requests_to_msg(req, fs_request);
 	ofs_fsync_response(msg, 0);

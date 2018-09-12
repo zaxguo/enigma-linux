@@ -19,7 +19,7 @@ EXPORT_SYMBOL(ofs_read);
 
 int ofs_fsync(int fd) {
 	printk("lwg:%s:%d:entered\n", __func__, __LINE__);
-	return sys_syncfs(fd);
+	return vfs_fsync(fd, 0);
 }
 EXPORT_SYMBOL(ofs_fsync);
 
