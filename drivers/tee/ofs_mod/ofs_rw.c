@@ -18,10 +18,6 @@ static inline void ofs_write_response(struct ofs_msg *msg, int count) {
 	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
-
-
-
-
 /* TODO: this read DOES not take the POS in fd into consideration */
 static int _ofs_read(struct file* filp, loff_t offset, char *buf, int count) {
 	int len = 0;
@@ -85,7 +81,7 @@ int ofs_write(int fd, char *buf, int count) {
 
 int ofs_read_handler(void *data) {
 	int fd, count;
-	char buf[1024]; /* random number */
+	char buf[4100]; /* slightly larger than 4k */
 	struct ofs_msg *msg;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	fd = req->fd;
