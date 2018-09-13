@@ -218,15 +218,16 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 }
 
 /* TODO: add locks */
-static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int rw, phys_addr_t pa) {
+static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int rw, phys_addr_t pa, int count) {
 	msg->op = OFS_BLK_REQUEST;
 	/* TODO: extend this to a list batch them..? */
 	msg->msg.fs_response.blocknr = block;
 	msg->msg.fs_response.rw = rw;
 	msg->msg.fs_response.pa = pa;
+	msg->msg.fs_response.fd = count;
 }
 
-static inline void ofs_blk_read_write(sector_t block, phys_addr_t pa, int rw) {
+static inline void ofs_blk_read_write(sector_t block, phys_addr_t pa, int rw, int count) {
 	struct ofs_msg *msg;
 	phys_addr_t shm_pa;
 	int rc;
@@ -234,12 +235,12 @@ static inline void ofs_blk_read_write(sector_t block, phys_addr_t pa, int rw) {
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	WARN_ON(!msg);
 	WARN_ON(!pa);
-	ofs_prep_blk_request(msg, block, rw, pa);
+	ofs_prep_blk_request(msg, block, rw, pa, count);
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
-/* TODO: add locks */
-static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
+/* TODO: add locks refactor */
+static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa, int count) {
 	struct ofs_msg *msg;
 	phys_addr_t shm_pa;
 	int rc;
@@ -247,18 +248,18 @@ static inline void ofs_blk_read_to_pa(sector_t block, phys_addr_t pa) {
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
 	WARN_ON(!msg);
 	WARN_ON(!pa);
-	ofs_prep_blk_request(msg, block, OFS_BLK_READ, pa);
+	ofs_prep_blk_request(msg, block, OFS_BLK_READ, pa, count);
 	ofs_switch_begin(shm_pa, &ofs_res);
 }
 
 /* TODO: add locks */
-static inline void ofs_blk_write_from_pa(sector_t block, phys_addr_t pa) {
-	return ofs_blk_read_write(block, pa, OFS_BLK_WRITE);
+static inline void ofs_blk_write_from_pa(sector_t block, phys_addr_t pa, int count) {
+	return ofs_blk_read_write(block, pa, OFS_BLK_WRITE, count);
 }
 
 /* dummy, does not do world switch in this */
 static inline void ofs_blk_read(struct ofs_msg *msg, sector_t block) {
-	return ofs_prep_blk_request(msg, block, OFS_BLK_READ, 0);
+	return ofs_prep_blk_request(msg, block, OFS_BLK_READ, 0, 0);
 }
 
 static inline int is_ofs_init(struct super_block *sb) {

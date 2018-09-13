@@ -338,14 +338,15 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 
 	rq_for_each_segment(bvec, rq, iter) {
 		if (is_init) {
-			int ret = 0;
+			int ret = 0, count;
 			iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
+			count = bvec.bv_len;
 			/* lwg: copy to shm */
 			bw = copy_from_iter(va, bvec.bv_len, &i);
 			blocknr = blk_rq_pos(rq);
 			smp_wmb();
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_WRITE);
-			ofs_blk_write_from_pa(blocknr, pa);
+			ofs_blk_write_from_pa(blocknr, pa, count);
 			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			/* ofs_dump_8b(va); */
 			/* TODO: consume the results returned by the cloud */
@@ -428,12 +429,14 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
 		/* directly change this to use data from secure world */
 		if (is_init) {
-			int ret = 0;
+			int ret = 0, count;
 			sector_t blocknr = blk_rq_pos(rq);
+			count = bvec.bv_len;
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
 			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
-			ofs_blk_read_to_pa(blk_rq_pos(rq), pa);
+			ofs_blk_read_to_pa(blk_rq_pos(rq), pa, count);
 			len = copy_to_iter(va, bvec.bv_len, &i);
+			/* XXX mem barrier */
 			smp_wmb();
 			tee_shm_free(shm);
 			goto ofs_read_done;
