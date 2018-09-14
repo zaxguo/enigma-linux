@@ -89,7 +89,7 @@ int ofs_read_handler(void *data) {
 	count = ofs_read(fd, buf, count);
 	printk("lwg:%s:%d:read [%d] ==> [%s]\n", __func__, __LINE__, fd, buf);
 	msg = requests_to_msg(req, fs_request);
-	ofs_read_response(msg, count);
+	ofs_read_response(msg, count >= 0 ? count : 0);
 	ofs_res.a3 = return_thread;
 	return count;
 }

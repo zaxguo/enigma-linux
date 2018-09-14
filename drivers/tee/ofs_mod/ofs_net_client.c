@@ -91,7 +91,7 @@ static int tcp_client_receive(struct socket *sock, char *str,\
         struct kvec vec;
         int len;
 		int ret, blknr, rw;
-        int max_size = 50;
+        int max_size = BUFSIZE;
 		char *tok;
 
         msg.msg_name    = 0;
@@ -124,11 +124,11 @@ read_again:
 		/* TODO: parse multiple */
 		tok = strsep(&str, " ");
 		while(tok != NULL) {
-			printk("lwg:%s:%d:tok = %s\n", __func__, __LINE__, tok);
+			/* printk("lwg:%s:%d:tok = %s\n", __func__, __LINE__, tok); */
 			ret = sscanf(tok,"%08x,%d ", &blknr, &rw);
 			if (ret == 2) { /* block request */
 				struct ofs_cloud_bio *bio = kmalloc(sizeof(struct ofs_cloud_bio), GFP_KERNEL);
-				printk("lwg:%s:%d:receiving [%08x, %d]\n", __func__, __LINE__, blknr, rw);
+				/* printk("lwg:%s:%d:receiving [%08x, %d]\n", __func__, __LINE__, blknr, rw); */
 				bio->blk = blknr;
 				bio->rw  = rw;
 				/* TODO: protect the list */
@@ -247,17 +247,17 @@ static void test_ofs_client_send(void) {
 
 int ofs_fs_send(struct ofs_fs_request *req) {
 	int ret;
-	char *reply = kmalloc(MAX_FILENAME, GFP_KERNEL);
-	char *fs_op = kmalloc(MAX_FILENAME, GFP_KERNEL);
-	memset(reply, 0x0, MAX_FILENAME);
+	char *reply = kmalloc(BUFSIZE, GFP_KERNEL);
+	char *fs_op = kmalloc(BUFSIZE, GFP_KERNEL);
+	memset(reply, 0x0, BUFSIZE);
 	ret = serialize_ofs_fs_ops(req, fs_op);
-	pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op);
+	/* pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op); */
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	kfree(fs_op);
 	/* expecting to see the response from the cloud */
 	ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT);
 	if (ret) {
-		printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply);
+		/* printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply); */
 		kfree(reply);
 	}
 }
