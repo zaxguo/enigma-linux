@@ -21,6 +21,7 @@
 #define OFS_FS "ext2"
 
 extern struct tee_shm *ofs_shm;
+extern struct tee_context *ofs_tee_context;
 extern struct tee_device *ofs_tee;
 extern struct arm_smccc_res ofs_res;
 extern unsigned long return_thread;
@@ -165,11 +166,23 @@ static inline struct ofs_msg *recv_ofs_msg(struct tee_shm *shm) {
 }
 
 static inline struct tee_shm *alloc_ofs_shm(struct tee_context *ctx, int size) {
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
-	WARN_ON(!ctx);
-	ctx->teedev = ofs_tee;
-	INIT_LIST_HEAD(&ctx->list_shm);
+	if (!ctx) {
+		printk("%s:no ctx??? ofs_tee_context @ [%p]\n", __func__, (void *)ofs_tee_context);
+		ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+		ctx->teedev = ofs_tee;
+		INIT_LIST_HEAD(&ctx->list_shm);
+	}
 	return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+	// return tee_shm_alloc(ctx, size, TEE_SHM_MAPPED);
+}
+
+static inline void free_ofs_context(struct tee_context *ctx) {
+	struct tee_shm *shm;
+	mutex_lock(&ctx->teedev->mutex);
+	list_for_each_entry(shm, &ctx->list_shm, link)
+		shm->ctx = NULL;
+	mutex_unlock(&ctx->teedev->mutex);
+	kfree(ctx);
 }
 
 /* TODO: add locks */

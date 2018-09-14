@@ -86,6 +86,8 @@
 #include <ofs/ofs_net.h>
 #include <linux/list.h>
 extern struct tee_device *ofs_tee;
+extern struct tee_context *ofs_tee_context;
+static struct tee_shm *ofs_block;
 
 static DEFINE_IDR(loop_index_idr);
 static DEFINE_MUTEX(loop_index_mutex);
@@ -317,7 +319,6 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 	struct req_iterator iter;
 	/* used by OFS */
 	struct tee_shm *shm;
-	struct tee_context *ctx;
 	phys_addr_t pa;
 	void *va;
 	sector_t blocknr;
@@ -325,10 +326,17 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 	ssize_t bw;
 	struct super_block *sb = lo->lo_device->bd_super;
 	int is_init = is_ofs_init(sb);
+	struct tee_context *ctx = ofs_tee_context;
 	int ret = 0;
 
 	if (is_init) {
-		shm = alloc_ofs_shm(ctx,  bvec.bv_len);
+		/* shm = alloc_ofs_shm(ctx,  bvec.bv_len); */
+		if (!ofs_block) {
+			ofs_block = alloc_ofs_shm(ctx,  PAGE_SIZE);
+			printk("No existing block mem??\n");
+			/* ofs_block = alloc_ofs_shm(ctx,  bvec.bv_len); */
+		}
+		shm = ofs_block;
 		BUG_ON(!shm);
 		tee_shm_get_pa(shm, 0, &pa);
 		BUG_ON(pa == 0);
@@ -349,8 +357,7 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 			ofs_blk_write_from_pa(blocknr, pa, count);
 			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			/* ofs_dump_8b(va); */
-			/* TODO: consume the results returned by the cloud */
-			tee_shm_free(shm);
+			/* tee_shm_free(shm); */
 			continue;
 		}
 		ret = lo_write_bvec(lo->lo_backing_file, &bvec, &pos);
@@ -412,12 +419,18 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	int is_init = 0;
 	sb = lo->lo_device->bd_super;
 	is_init = is_ofs_init(sb);
+	ctx = ofs_tee_context;
 
 	if (is_init) {
 		/* is_init = sb->s_flags & MS_OFS; */
 		/* printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__); */
 		/* note this ctx is not freed */
-		shm = alloc_ofs_shm(ctx,  bvec.bv_len);
+		if (!ofs_block) {
+			ofs_block = alloc_ofs_shm(ctx,  PAGE_SIZE);
+			printk("No existing block mem??\n");
+		}
+		/* shm = alloc_ofs_shm(ctx,  bvec.bv_len); */
+		shm = ofs_block;
 		BUG_ON(!shm);
 		tee_shm_get_pa(shm, 0, &pa);
 		BUG_ON(pa == 0);
@@ -438,7 +451,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			len = copy_to_iter(va, bvec.bv_len, &i);
 			/* XXX mem barrier */
 			smp_wmb();
-			tee_shm_free(shm);
+			/* tee_shm_free(shm); */
 			goto ofs_read_done;
 		}
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
@@ -2045,6 +2058,7 @@ static int __init loop_init(void)
 	unsigned long range;
 	struct loop_device *lo;
 	int err;
+	struct tee_context *ctx = ofs_tee_context;
 
 	err = misc_register(&loop_misc);
 	if (err < 0)
@@ -2105,6 +2119,11 @@ static int __init loop_init(void)
 		loop_add(&lo, i);
 	mutex_unlock(&loop_index_mutex);
 
+
+	/* init ofs block shm */
+#if 0
+	ofs_block = alloc_ofs_shm(ctx,  PAGE_SIZE);
+#endif
 	printk(KERN_INFO "loop: module loaded\n");
 	return 0;
 
@@ -2134,6 +2153,7 @@ static void __exit loop_exit(void)
 	unregister_blkdev(LOOP_MAJOR, "loop");
 
 	misc_deregister(&loop_misc);
+
 }
 
 module_init(loop_init);

@@ -39,7 +39,24 @@
 struct tee_device *ofs_tee = NULL;
 EXPORT_SYMBOL(ofs_tee);
 
+struct tee_context *ofs_tee_context = NULL;
+EXPORT_SYMBOL(ofs_tee_context);
 
+
+static void init_ofs_tee_context(struct tee_context *ctx, struct tee_device *dev) {
+	if (ctx != NULL)
+		return;
+	if (dev == NULL)
+		return;
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	if (!ctx) {
+		printk("lwg:%s:%d:init failed\n", __func__, __LINE__);
+		return;
+	}
+	ctx->teedev = dev;
+	INIT_LIST_HEAD(&ctx->list_shm);
+	printk("lwg:%s:%d:init success@[%p]\n", __func__, __LINE__, (void *)ctx);
+}
 
 
 
@@ -615,6 +632,8 @@ static int __init optee_driver_init(void)
 	ofs_tee = optee->teedev;
 
 	optee_bm_enable();
+
+	init_ofs_tee_context(ofs_tee_context, ofs_tee);
 
 	printk("lwg:%s:OPTEE driver init success!\n", __func__);
 	return 0;

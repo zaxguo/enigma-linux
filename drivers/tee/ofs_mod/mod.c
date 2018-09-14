@@ -46,6 +46,7 @@ extern int tee_shm_get_pa(struct tee_shm *shm, size_t off, phys_addr_t *pa);
 extern int	ofs_mkdir(const char *, int);
 extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
+extern struct tee_context *ofs_tee_context;
 
 struct page *write_buf;
 unsigned long return_thread = 0;
@@ -129,16 +130,20 @@ static int ofs_bench(void *data) {
 
 	/* Init */
 	op = 0;
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+#if 1
+	ctx = ofs_tee_context;
 	if (!ctx) {
-		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);
+		ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+		ctx->teedev = ofs_tee;
+		INIT_LIST_HEAD(&ctx->list_shm);
+		/* printk(KERN_ERR"lwg:%s:NO MEM\n", __func__); */
 	}
-	ctx->teedev = ofs_tee;
-	INIT_LIST_HEAD(&ctx->list_shm);
-
+#endif
 	/* allocate shm */
 	ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+	/* ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED); */
 	if (IS_ERR(ofs_shm)) {
+		printk("XXX:shm allocation failure\n");
 		return PTR_ERR(ofs_shm);
 	}
 	printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
@@ -401,7 +406,8 @@ static int __init ofs_init(void)
 	INIT_LIST_HEAD(&ctx->list_shm);
 
 	/* allocate shm */
-	ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
+	/* ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF); */
+	ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED);
 	if (IS_ERR(ofs_shm)) {
 		return PTR_ERR(ofs_shm);
 	}
@@ -417,9 +423,7 @@ static int __init ofs_init(void)
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
 
-
 	ofs_network_client_init();
-
 
 	return 0;
 }

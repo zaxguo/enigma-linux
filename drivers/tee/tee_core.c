@@ -71,7 +71,7 @@ err:
 
 }
 
-static void teedev_close_context(struct tee_context *ctx)
+void teedev_close_context(struct tee_context *ctx)
 {
 	struct tee_shm *shm;
 
