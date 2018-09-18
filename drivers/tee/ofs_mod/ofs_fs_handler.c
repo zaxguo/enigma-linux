@@ -9,6 +9,7 @@
 #include <ofs/ofs_util.h>
 #include <ofs/ofs_net.h>
 #include <linux/socket.h>
+#include "ofs_obfuscation.h"
 
 /* index corresponds to its opcode */
 static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
@@ -33,7 +34,11 @@ static inline void dump_ofs_fs_request(struct ofs_fs_request *req) {
 static int ofs_fs_handler(void *data) {
 	char *filename;
 	int request, ret;
-	struct ofs_fs_request *req= (struct ofs_fs_request *)data;
+	struct ofs_fs_request *req = kmalloc(sizeof(*req), GFP_KERNEL);
+	/* struct ofs_fs_request *req = (struct ofs_fs_request *)data; */
+	/* pointer to data will be modified by subsequent fs calls */
+	memcpy(req, data, sizeof(*req));
+	req = data;
 	request = req->request;
 	filename = req->filename;
 	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
@@ -66,7 +71,9 @@ static int ofs_fs_handler(void *data) {
 		printk("warning:%s:%d:why not consumed??\n", __func__, __LINE__);
 		ofs_cloud_bio_del_all();
 	}
+	/* kfree(req); */
 	ofs_switch_resume(&ofs_res);
+	/* ofs_obfuscate(request); */
 	return 0;
 }
 

@@ -100,7 +100,6 @@ int ofs_write_handler(void *data) {
 		return 0;
 	}
 	int fd, count;
-	/* char buf[20] = "xxxxxxxxxxxxxxxxxx"; [> random number <] */
 	void *buf;
 	struct ofs_msg *msg;
 	uint8_t *b;
