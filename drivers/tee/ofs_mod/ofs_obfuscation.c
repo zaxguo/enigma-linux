@@ -104,7 +104,6 @@ static void ofs_obfus_fsync(void) {
 	vfs_fsync(f, datasync);
 }
 
-
 void ofs_obfuscate(int req) {
 	int i, j;
 	int obfus_lv = 3;
@@ -140,4 +139,5 @@ void ofs_obfuscate(int req) {
 				break;
 		}
 	}
+	printk("%s:finished!\n", __func__);
 }

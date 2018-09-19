@@ -28,20 +28,30 @@ extern struct socket *conn_socket; /* send msg to server */
  * repurpose this msg (i.e., change it to response) */
 
 static inline void dump_ofs_fs_request(struct ofs_fs_request *req) {
-	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request]);
+	printk("lwg:%s:[%s]\n", __func__, ofs_syscalls[req->request]);
+}
+
+static void *restore_ofs_msg(void *msg, void *saved, int size) {
+	return memcpy(msg, saved, size);
 }
 
 static int ofs_fs_handler(void *data) {
 	char *filename;
 	int request, ret;
-	struct ofs_fs_request *req = kmalloc(sizeof(*req), GFP_KERNEL);
+	struct ofs_fs_request *req;
+	struct ofs_fs_request *saved = kmalloc(sizeof(*req), GFP_KERNEL);
 	/* struct ofs_fs_request *req = (struct ofs_fs_request *)data; */
 	/* pointer to data will be modified by subsequent fs calls */
-	memcpy(req, data, sizeof(*req));
 	req = data;
 	request = req->request;
 	filename = req->filename;
 	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
+	dump_ofs_fs_request(data);
+	memcpy(saved, data, sizeof(struct ofs_fs_request));
+	/* this will mess up the shared mem */
+	ofs_obfuscate(request);
+	restore_ofs_msg(data, saved, sizeof(struct ofs_fs_request));
+	dump_ofs_fs_request(data);
 	if (conn_socket) {
 		ofs_fs_send(req);
 	}
@@ -73,7 +83,6 @@ static int ofs_fs_handler(void *data) {
 	}
 	/* kfree(req); */
 	ofs_switch_resume(&ofs_res);
-	/* ofs_obfuscate(request); */
 	return 0;
 }
 

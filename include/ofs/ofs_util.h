@@ -78,7 +78,7 @@ static inline int set_ofs_file(struct file *filp) {
 					__LINE__,
 					ino->i_ino,
 					mapping->flags);
-			printk("lwg:%s:%d:testing bit = [%d]\n", __func__, __LINE__, test_bit(AS_OFS, &mapping->flags));
+			// printk("lwg:%s:%d:testing bit = [%d]\n", __func__, __LINE__, test_bit(AS_OFS, &mapping->flags));
 			return 1;
 		}
 	}
@@ -282,6 +282,5 @@ static inline int is_ofs_init(struct super_block *sb) {
 	}
 	return ret;
 }
-
 
 #endif /* OFS_UTIL_H */
