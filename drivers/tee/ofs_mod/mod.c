@@ -26,7 +26,7 @@
 #include <linux/gfp.h> /* alloc_page */
 #include <asm/page.h>
 #include <linux/highmem.h> /* kmap_atomic */
-
+#include <linux/time.h>
 #include <ofs/ofs_msg.h> /* struct ofs_msg */
 #include <ofs/ofs_util.h>  /* some utility functions */
 #include <ofs/ofs_opcode.h>
@@ -84,7 +84,7 @@ static int ofs_tee_open(struct tee_device *tee) {
 	param.u.value.b = 1;
 	param.u.value.c = 2;
 	if (!tee->desc->ops->invoke_func) {
-		printk(KERN_ERR"lwg:%s:cannot find invoke func!\n", __func__);
+		ofs_printk(KERN_ERR"lwg:%s:cannot find invoke func!\n", __func__);
 		return 1;
 	}
 	rc = tee->desc->ops->invoke_func(ofs_context, &arg , &param);
@@ -115,7 +115,7 @@ static int ofs_handle_msg(struct ofs_msg *msg) {
 
 static void ofs_bench_start(phys_addr_t shm_pa, struct arm_smccc_res *res) {
 #ifdef OFS_DEBUG
-	printk("lwg:%s:%d:kick start ofs bench\n", __func__, __LINE__);
+	ofs_printk("lwg:%s:%d:kick start ofs bench\n", __func__, __LINE__);
 #endif
 	raw_ofs_switch(OFS_BENCH_START, shm_pa, res);
 }
@@ -127,7 +127,8 @@ static int ofs_bench(void *data) {
 	phys_addr_t shm_pa;
 	struct ofs_msg *msg;
 	int op;
-
+	/* benchmark purpose */
+	struct timespec start, end, diff;
 	/* Init */
 	op = 0;
 #if 1
@@ -146,17 +147,19 @@ static int ofs_bench(void *data) {
 		printk("XXX:shm allocation failure\n");
 		return PTR_ERR(ofs_shm);
 	}
-	printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
+	ofs_printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
-	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
+	ofs_printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
 	/* prepare the page request */
 	/* ofs_pg_request(0xdeadbeef, 0x1); */
 	/* Kick start the benchmark */
 	ofs_bench_start(shm_pa, &ofs_res);
+
 	/* TODO: may change this to indicate the end of the benchmark */
+	getnstimeofday(&start);
 	while(OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
 		return_thread = ofs_res.a3;
-		printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3);
+		ofs_printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3);
 #if 0
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 		printk("lwg:a0 = %08lx\n", ofs_res.a0);
@@ -191,7 +194,9 @@ static int ofs_bench(void *data) {
 		 * which may lead to premature resume */
 		/* ofs_switch_resume(&ofs_res); */
 	}
-
+	getnstimeofday(&end);
+	diff = timespec_sub(end, start);
+	printk("elapse time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec);
 	{
 		rc = ofs_res.a0;
 	}
@@ -217,12 +222,12 @@ static void read_file(void) {
 //	char buf[128];
 	f = filp_open("/mnt/ext2/ofs", O_RDONLY, 0);
 	if (IS_ERR(f)) {
-		printk("lwg:%s:cannot read file\n", __func__);
+		ofs_printk("lwg:%s:cannot read file\n", __func__);
 		return;
 	}
 	ino = f->f_inode;
 
-	printk("lwg:%s:%d:%lu:%s\n", __func__, __LINE__, f->f_inode->i_ino, ino->i_sb->s_type->name);
+	ofs_printk("lwg:%s:%d:%lu:%s\n", __func__, __LINE__, f->f_inode->i_ino, ino->i_sb->s_type->name);
 	return;
 }
 
@@ -309,14 +314,12 @@ static ssize_t ofs_proc_write(struct file *file, const char __user *buf, size_t 
 		case 1:
 			printk("lwg:%s:%d:kick start benchmark\n", __func__, __LINE__);
 			ofs_switch(&ofs_res);
-
 			smp_mb();
 			msg = recv_ofs_msg(ofs_shm);
 			ofs_handle_msg(msg);
 			ofs_switch_resume(&ofs_res);
 			break;
 		case 2:
-//			read_file();
 			ofs_switch(&ofs_res);
 			smp_mb();
 			msg = recv_ofs_msg(ofs_shm);
@@ -385,7 +388,7 @@ static void init_rw_buf(void) {
 	addr = kmap_atomic(write_buf);
 	memset(addr, 0x63, PAGE_SIZE);
 	kunmap_atomic(addr);
-	printk("read/write buf initialized!\n");
+	ofs_printk("read/write buf initialized!\n");
 }
 
 
@@ -411,20 +414,18 @@ static int __init ofs_init(void)
 	if (IS_ERR(ofs_shm)) {
 		return PTR_ERR(ofs_shm);
 	}
-	printk("lwg:%s:shm allocated va@ %p\n", __func__, ofs_shm);
+	printk("lwg:%s:shm allocated va @ %p\n", __func__, ofs_shm);
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
-	printk("lwg:%s:shm allocated pa@ %16llx\n", __func__, shm_pa);
+	printk("lwg:%s:shm allocated pa @ %16llx\n", __func__, shm_pa);
 	if (!ofs_tee) {
 		printk(KERN_ERR"lwg:%s:cannot find tee class!\n",__func__);
 		return 1;
 	}
 	printk(KERN_INFO"lwg:%s:OFS init sucess:----------------------------------\n",__func__);
-	printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
+	ofs_printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
-
 	ofs_network_client_init();
-
 	return 0;
 }
 

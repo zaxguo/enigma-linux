@@ -105,7 +105,7 @@ static int ofs_verify_block(int blknr, int rw) {
 	struct ofs_cloud_bio *tmp;
 	struct list_head *pos, *q;
 	if (list_empty(&ofs_cloud_bio_list)) {
-		printk("%s:%d:!!! list empty!!!\n", __func__, __LINE__);
+		ofs_printk("%s:%d:!!! list empty!!!\n", __func__, __LINE__);
 		return -1;
 	}
 	list_for_each_safe(pos, q, &ofs_cloud_bio_list) {
@@ -355,7 +355,7 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 			smp_wmb();
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_WRITE);
 			ofs_blk_write_from_pa(blocknr, pa, count);
-			printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
+			ofs_printk("lwg:%s:%d:write blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			/* ofs_dump_8b(va); */
 			/* tee_shm_free(shm); */
 			continue;
@@ -446,7 +446,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			sector_t blocknr = blk_rq_pos(rq);
 			count = bvec.bv_len;
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
-			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
+			ofs_printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			ofs_blk_read_to_pa(blk_rq_pos(rq), pa, count);
 			len = copy_to_iter(va, bvec.bv_len, &i);
 			/* XXX mem barrier */

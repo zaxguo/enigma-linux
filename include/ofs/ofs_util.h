@@ -73,7 +73,7 @@ static inline int set_ofs_file(struct file *filp) {
 		if (!strcmp(sb->s_type->name, OFS_FS)) {
 			struct address_space *mapping = filp->f_mapping;
 			set_ofs_address_space(mapping);
-			printk("lwg:%s:%d:setting up ofs file ino = %ld, flag = %08lx\n",
+			ofs_printk("lwg:%s:%d:setting up ofs file ino = %ld, flag = %08lx\n",
 					__func__,
 					__LINE__,
 					ino->i_ino,

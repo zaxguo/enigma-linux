@@ -28,7 +28,7 @@ extern struct socket *conn_socket; /* send msg to server */
  * repurpose this msg (i.e., change it to response) */
 
 static inline void dump_ofs_fs_request(struct ofs_fs_request *req) {
-	printk("lwg:%s:[%s]\n", __func__, ofs_syscalls[req->request]);
+	ofs_printk("lwg:%s:[%s]\n", __func__, ofs_syscalls[req->request]);
 }
 
 static void *restore_ofs_msg(void *msg, void *saved, int size) {
@@ -45,16 +45,18 @@ static int ofs_fs_handler(void *data) {
 	req = data;
 	request = req->request;
 	filename = req->filename;
-	printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
-	dump_ofs_fs_request(data);
+	ofs_printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
+	/* dump_ofs_fs_request(data); */
 	memcpy(saved, data, sizeof(struct ofs_fs_request));
 	/* this will mess up the shared mem */
 	ofs_obfuscate(request);
 	restore_ofs_msg(data, saved, sizeof(struct ofs_fs_request));
-	dump_ofs_fs_request(data);
+	/* dump_ofs_fs_request(data); */
+#if 0
 	if (conn_socket) {
 		ofs_fs_send(req);
 	}
+#endif
 	switch (request) {
 		case OFS_MKDIR:
 			ofs_mkdir(filename, 0777);
@@ -78,10 +80,10 @@ static int ofs_fs_handler(void *data) {
 	/* Up to this point, all bio should be consumed already,
 	 * if not, destroy the bio list */
 	if (!list_empty(&ofs_cloud_bio_list)) {
-		printk("warning:%s:%d:why not consumed??\n", __func__, __LINE__);
+		ofs_printk("warning:%s:%d:why not consumed??\n", __func__, __LINE__);
 		ofs_cloud_bio_del_all();
 	}
-	/* kfree(req); */
+	kfree(saved);
 	ofs_switch_resume(&ofs_res);
 	return 0;
 }

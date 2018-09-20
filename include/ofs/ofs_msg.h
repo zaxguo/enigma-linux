@@ -4,6 +4,14 @@
 #include <linux/kernel.h>
 
 
+#define OFS_BENCH	1
+
+#ifndef OFS_BENCH
+#define ofs_printk(...) printk(__VA_ARGS__)
+#else
+#define ofs_printk(...) (void)0
+#endif
+
 extern unsigned long return_thread;
 /* the FS syscalls issued from secure world */
 #define OFS_MKDIR	1
@@ -11,7 +19,6 @@ extern unsigned long return_thread;
 #define OFS_READ	3
 #define OFS_WRITE	4
 #define OFS_FSYNC	5
-
 
 #define MAX_FILENAME 99
 

@@ -15,7 +15,7 @@ unsigned char destip[5] = {128,46,76,40,'\0'}; /* fortwayne USB IP addr */
 int ofs_cloud_bio_del_all(void) {
 	struct list_head *pos, *q;
 	struct ofs_cloud_bio *tmp;
-	printk("%s:%d:deleting all entries in the list...\n", __func__, __LINE__);
+	ofs_printk("%s:%d:deleting all entries in the list...\n", __func__, __LINE__);
 	list_for_each_safe(pos, q, &ofs_cloud_bio_list) {
 		tmp = list_entry(pos, struct ofs_cloud_bio, list);
 		list_del(pos);
@@ -73,7 +73,7 @@ repeat_send:
                                 (len == -EAGAIN)))
                 goto repeat_send;
         if(len > 0 && (len != length)) {
-			printk("lwg:%s:%d:left overs!\n", __func__, __LINE__);
+			ofs_printk("lwg:%s:%d:left overs!\n", __func__, __LINE__);
                 written += len;
                 left -= len;
                 if(left)
@@ -120,7 +120,7 @@ read_again:
                 /*         "tcp_client_receive *** \n", len); */
                 goto read_again;
         }
-		printk("lwg:receiving %s\n", str);
+		ofs_printk("lwg:receiving %s\n", str);
 		/* TODO: parse multiple */
 		tok = strsep(&str, " ");
 		while(tok != NULL) {
@@ -136,7 +136,7 @@ read_again:
 				if (!list_empty(&ofs_cloud_bio_list)) {
 					struct ofs_cloud_bio *e;
 					list_for_each_entry(e, &ofs_cloud_bio_list, list) {
-						printk("lwg:%s:%d:blknr = %x\n", __func__, __LINE__, e->blk);
+						ofs_printk("lwg:%s:%d:blknr = %x\n", __func__, __LINE__, e->blk);
 					}
 				}
 			} else {
@@ -191,7 +191,7 @@ static int tcp_client_connect(void)
         memset(&reply, 0, len+1);
         strcat(reply, "HOLA: OFS client initializing...\n");
         ret = tcp_client_send(conn_socket, reply, strlen(reply), MSG_DONTWAIT);
-		printk("lwg:%s:%d:sending out [%d] bytes\n", __func__, __LINE__, ret);
+		ofs_printk("lwg:%s:%d:sending out [%d] bytes\n", __func__, __LINE__, ret);
         tcp_client_receive(conn_socket, response, MSG_DONTWAIT);
 #if 0
         wait_event_timeout(recv_wait,\
@@ -238,8 +238,8 @@ static void test_ofs_client_send(void) {
 	char *fs_op = kmalloc(MAX_FILENAME, GFP_KERNEL);
 	/* tcp_client_send(conn_socket, "lwg testing 1", 36, MSG_DONTWAIT); [> this is as far as it goes... <] */
 	ret = serialize_ofs_fs_ops(&tmp, fs_op);
-	printk("lwg:testing ofs fs op send...\n");
-	printk("lwg:sending [%s]..\n", fs_op);
+	ofs_printk("lwg:testing ofs fs op send...\n");
+	ofs_printk("lwg:sending [%s]..\n", fs_op);
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	/* tcp_client_send(conn_socket, "lwg testing 2", 36, MSG_DONTWAIT); */
 	kfree(fs_op);
@@ -266,9 +266,9 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 
 int ofs_network_client_init(void)
 {
-		printk("lwg:%s:init network client\n", __func__);
         tcp_client_connect();
 		/* test_ofs_client_send(); */
+		printk("lwg:%s:network client initialized!\n", __func__);
         return 0;
 }
 

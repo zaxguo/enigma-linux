@@ -10,12 +10,12 @@ extern struct page* write_buf;
 
 static inline void ofs_read_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
-	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
+	trace_printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
 static inline void ofs_write_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
-	printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
+	trace_printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
 /* TODO: this read DOES not take the POS in fd into consideration */
@@ -27,8 +27,8 @@ static int _ofs_read(struct file* filp, loff_t offset, char *buf, int count) {
 		/* TODO: update the POS in fd */
 		if (len < 0) goto err;
 		buf[len] = '\0';
-		printk("lwg:%s:%d:read file ino = [%lu]\n", __func__, __LINE__, filp->f_inode->i_ino);
-		printk("lwg:%s:%d:read out %d bytes [%s]\n", __func__, __LINE__, len, buf);
+		ofs_printk("lwg:%s:%d:read file ino = [%lu]\n", __func__, __LINE__, filp->f_inode->i_ino);
+		ofs_printk("lwg:%s:%d:read out %d bytes [%s]\n", __func__, __LINE__, len, buf);
 		/* update POS */
 		return len;
 	}
@@ -87,7 +87,7 @@ int ofs_read_handler(void *data) {
 	fd = req->fd;
 	count = req->count;
 	count = ofs_read(fd, buf, count);
-	printk("lwg:%s:%d:read [%d] ==> [%s]\n", __func__, __LINE__, fd, buf);
+	ofs_printk("lwg:%s:%d:read [%d] ==> [%s]\n", __func__, __LINE__, fd, buf);
 	msg = requests_to_msg(req, fs_request);
 	ofs_read_response(msg, count >= 0 ? count : 0);
 	ofs_res.a3 = return_thread;
@@ -108,7 +108,7 @@ int ofs_write_handler(void *data) {
 	buf = kmap(write_buf);
 	fd = req->fd;
 	count = req->count;
-	printk("lwg:%s:%d:write [%d] bytes to [%d]\n", __func__, __LINE__, count, fd);
+	ofs_printk("lwg:%s:%d:write [%d] bytes to [%d]\n", __func__, __LINE__, count, fd);
 	memset(buf, 0x63, count); /* dummy data */
 	count = ofs_write(fd, buf, count);
 	msg = requests_to_msg(req, fs_request);

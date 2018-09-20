@@ -11,6 +11,7 @@
 
 #define LOWER	97
 #define UPPER	122
+#define CURR_OBFUS_LV	0
 #define MAX_OBFUS_LV	10
 #define MAX_OBFUS_OPS	6
 #define MIN(a,b)	(((a) < (b)) ? (a) : (b))
@@ -35,7 +36,7 @@ static void ofs_obfus_open(int idx) {
 	}
 	strncat(decoyfile, filename, max_filename);
 	decoy_files[idx] = filp_open(decoyfile, O_RDWR | O_CREAT, 0600);
-	printk("decoy: opening file name = %s\n", decoyfile);
+	ofs_printk("decoy: opening file name = %s\n", decoyfile);
 	kfree(filename);
 	kfree(decoyfile);
 }
@@ -45,7 +46,7 @@ static struct file *get_rand_decoy_file(void) {
 	int rand = get_random_int() % MIN(decoy_file_cnt, MAX_OBFUS_LV);
 	f = decoy_files[rand];
 	if (!f) {
-		printk("idx %d no file!\n", rand);
+		ofs_printk("idx %d no file!\n", rand);
 		WARN_ON(1);
 		return NULL;
 	}
@@ -60,7 +61,7 @@ static int ofs_obfus_rw(int rw) {
 	ret = 0;
 	f = get_rand_decoy_file();
 	if (!f) {
-		printk("%s:err -- no files...\n", __func__);
+		ofs_printk("%s:err -- no files...\n", __func__);
 		return 0;
 	}
 	if (rw == 0) {
@@ -106,7 +107,7 @@ static void ofs_obfus_fsync(void) {
 
 void ofs_obfuscate(int req) {
 	int i, j;
-	int obfus_lv = 3;
+	int obfus_lv = CURR_OBFUS_LV;
 	/* prepare for decoy files operations */
 	if (req == OFS_OPEN) {
 		for (j = 0; j < obfus_lv; j++) {
@@ -115,7 +116,7 @@ void ofs_obfuscate(int req) {
 	}
 	for (i = 0; i < obfus_lv; i++) {
 		int op = get_random_int() % MAX_OBFUS_OPS;
-		printk("%s:decoy op = %d\n", __func__, op);
+		ofs_printk("%s:decoy op = %d\n", __func__, op);
 		switch (op) {
 			case	0:
 				ofs_obfus_rw(0);
@@ -139,5 +140,5 @@ void ofs_obfuscate(int req) {
 				break;
 		}
 	}
-	printk("%s:finished!\n", __func__);
+	ofs_printk("%s:finished!\n", __func__);
 }
