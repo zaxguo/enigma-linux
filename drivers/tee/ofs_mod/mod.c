@@ -78,10 +78,24 @@ static long long get_file_size(struct file* f) {
 }
 
 
+static void dump_fs_img(void) {
+	int i, pfn;
+	uint8_t *byte;
+	pfn = img_pa >> PAGE_SHIFT;
+	struct page *page = pfn_to_page(pfn);
+	byte = kmap(page);
+	printk("start pfn = %x, pfn = %x\n", img_pa, pfn);
+	for (i = 0x400; i < 0x40f; i++) {
+		printk("%x at %x\n", *(byte +i), i);
+	}
+	kunmap(page);
+	return;
+}
+
 static int init_fs_img(char *fs) {
 	struct page *page;
 	long long img_size, pos;
-	char buf[PAGE_SIZE];
+	uint8_t buf[PAGE_SIZE];
 	int nr_pages, i, pfn, start_pfn, allocated;
 	struct file* f = filp_open(fs, O_RDWR, 0600);
 	if (!f) {
@@ -108,15 +122,26 @@ static int init_fs_img(char *fs) {
 		return -1;
 	}
 	pos = 0;
-	printk("%s:starting to read fs img...\n", __func__);
 	pfn = page_to_pfn(page);
 	start_pfn = page_to_pfn(page);
+	printk("%s:starting to read fs img...\n", __func__);
+	int count = 0;
 	for (i = 0; i < nr_pages; i++, pfn++) {
-		struct page *tmp = pfn_to_page(pfn);
 		void *addr;
-		pos += kernel_read(f, pos, buf, PAGE_SIZE);
+		int count = 0;
+		struct page *tmp = pfn_to_page(pfn);
+		count = kernel_read(f, pos, buf, PAGE_SIZE);
+		pos += count;
 		addr = kmap(page);
 		memcpy(addr, buf, PAGE_SIZE);
+		if (i == 0) {
+			int j;
+			for (j = 0x400; j < 0x40f; j++) {
+				uint8_t *byte = addr;
+				uint8_t xx = *(byte + j);
+				printk("%x at %x\n", xx, j);
+			}
+		}
 		kunmap(tmp);
 	}
 	img_pa = start_pfn << PAGE_SHIFT;
@@ -124,6 +149,16 @@ static int init_fs_img(char *fs) {
 			__func__,
 			fs,
 			img_pa);
+	/* why it cannot be read back to page ???*/
+	struct page *tmp = pfn_to_page(start_pfn);
+	void *addr = kmap(tmp);
+	int j;
+	for (j = 0x400; j < 0x40f; j++) {
+		uint8_t *byte = addr;
+		uint8_t xx = *(byte + j);
+		printk("%x at %x\n", xx, j);
+	}
+
 	return 0;
 }
 
@@ -396,6 +431,9 @@ static ssize_t ofs_proc_write(struct file *file, const char __user *buf, size_t 
 			 * in its *own* calling context, we start another
 			 * kthread to do the job */
 			tsk = kthread_run(ofs_bench, NULL, "ofs_bench");
+			break;
+		case 5:
+			dump_fs_img();
 			break;
 		default:
 			break;
