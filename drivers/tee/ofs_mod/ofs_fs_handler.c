@@ -23,6 +23,7 @@ static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 };
 
 extern struct socket *conn_socket; /* send msg to server */
+struct ofs_msg *saved_msg;
 
 /* Note this should be used BEFORE any handler since handler will
  * repurpose this msg (i.e., change it to response) */
@@ -85,6 +86,12 @@ static int ofs_fs_handler(void *data) {
 		ofs_cloud_bio_del_all();
 	}
 	kfree(saved);
+	struct ofs_msg *msg = requests_to_msg(req, fs_request);
+	/* dirty */
+	if (msg->op != OFS_FS_RESPONSE) {
+		printk("%s:dirty fixing msg before returning...\n", __func__);
+		memcpy(msg, saved_msg, sizeof(struct ofs_msg));
+	}
 	ofs_switch_resume(&ofs_res);
 	return 0;
 }

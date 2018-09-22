@@ -12,11 +12,13 @@
 /* TODO: refactor for code reuse */
 static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, fd, -1, -1, -1);
+	memcpy(saved_msg, msg, sizeof(struct ofs_msg));
 	trace_printk("lwg:%s:%d:complete fd = [%d]\n", __func__, __LINE__, msg->msg.fs_response.fd);
 }
 
 static inline void ofs_fsync_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
+	memcpy(saved_msg, msg, sizeof(struct ofs_msg));
 	trace_printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
@@ -43,7 +45,6 @@ int ofs_open_handler(void *data) {
 	ofs_res.a3 = return_thread;
 	return 0;
 }
-
 
 static inline int _ofs_fsync(int fd) {
 	struct file *filp;

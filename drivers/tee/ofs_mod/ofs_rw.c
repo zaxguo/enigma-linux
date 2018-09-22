@@ -10,11 +10,13 @@ extern struct page* write_buf;
 
 static inline void ofs_read_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
+	memcpy(saved_msg, msg, sizeof(struct ofs_msg));
 	trace_printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
 static inline void ofs_write_response(struct ofs_msg *msg, int count) {
 	ofs_prep_fs_response(msg, OFS_FS_RESPONSE, count, -1, -1, -1);
+	memcpy(saved_msg, msg, sizeof(struct ofs_msg));
 	trace_printk("lwg:%s:%d:complete count = [%d]\n", __func__, __LINE__, count);
 }
 
@@ -50,7 +52,6 @@ int ofs_read(int fd, char *buf, int count) {
 	}
 	return -EFAULT;
 }
-
 
 static int _ofs_write(struct file* filp, char *buf, int count, loff_t pos) {
 	int len = 0;

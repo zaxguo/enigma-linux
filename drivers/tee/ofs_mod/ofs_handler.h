@@ -8,6 +8,7 @@
 #include <linux/fdtable.h>
 
 extern struct files_struct ofs_files;
+extern struct ofs_msg *saved_msg;
 
 static inline struct file *ofs_fget(int fd) {
 	return fcheck_files(&ofs_files, fd);

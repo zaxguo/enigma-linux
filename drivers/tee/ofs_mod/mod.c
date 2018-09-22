@@ -543,7 +543,7 @@ static int __init ofs_init(void)
 	ofs_network_client_init();
 	init_fs_img(img_name);
 	spin_lock_init(&ofs_msg_spinlock);
-
+	saved_msg = kmalloc(sizeof(struct ofs_msg), GFP_KERNEL);
 	return 0;
 }
 
