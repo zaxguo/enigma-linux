@@ -92,6 +92,22 @@ static void dump_fs_img(void) {
 	return;
 }
 
+static int fs_sanity_test(void *img) {
+#define F2FS_SUPER_MAGIC	0xF2F52010
+#define EXT2_SB_MAGIC_OFFSET	0x38
+#define EXT2_SUPER_MAGIC	0xEF53
+	int magic = *(int *)img;
+	if (magic == F2FS_SUPER_MAGIC) {
+		printk("loaded F2FS!\n");
+	} else {
+		if (*(__le16 *)(img + EXT2_SB_MAGIC_OFFSET) ==
+			cpu_to_le16(EXT2_SUPER_MAGIC)) {
+		printk("loaded EXT FS!\n");
+		}
+	}
+}
+
+
 static int init_fs_img(char *fs) {
 	struct page *page;
 	long long img_size, pos;
@@ -132,7 +148,7 @@ static int init_fs_img(char *fs) {
 		struct page *tmp = pfn_to_page(pfn);
 		count = kernel_read(f, pos, buf, PAGE_SIZE);
 		pos += count;
-		addr = kmap(page);
+		addr = kmap(tmp);
 		memcpy(addr, buf, PAGE_SIZE);
 		if (i == 0) {
 			int j;
@@ -149,16 +165,10 @@ static int init_fs_img(char *fs) {
 			__func__,
 			fs,
 			img_pa);
-	/* why it cannot be read back to page ???*/
+	/* sanity test */
 	struct page *tmp = pfn_to_page(start_pfn);
 	void *addr = kmap(tmp);
-	int j;
-	for (j = 0x400; j < 0x40f; j++) {
-		uint8_t *byte = addr;
-		uint8_t xx = *(byte + j);
-		printk("%x at %x\n", xx, j);
-	}
-
+	fs_sanity_test(addr + 0x400);
 	return 0;
 }
 
