@@ -17,6 +17,7 @@
 /* fs-related struct, utils */
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 
 #define OFS_FS "ext2"
 
@@ -25,6 +26,7 @@ extern struct tee_context *ofs_tee_context;
 extern struct tee_device *ofs_tee;
 extern struct arm_smccc_res ofs_res;
 extern unsigned long return_thread;
+extern spinlock_t ofs_msg_spinlock;
 
 static inline void ofs_dump_8b(void *va) {
 	uint8_t *byte;
@@ -37,13 +39,16 @@ static inline void ofs_dump_8b(void *va) {
 	printk("\n");
 }
 
+/* lock */
 static inline void ofs_prep_fs_response(struct ofs_msg *msg, int op, int fd, int blocknr, phys_addr_t pa, int rw) {
+	// spin_lock(&ofs_msg_spinlock);
 	msg->op = op;
 	msg->msg.fs_response.fd = fd;
 	msg->msg.fs_response.blocknr = blocknr;
 	msg->msg.fs_response.pa		 = pa;
 	msg->msg.fs_response.rw		 = rw;
 	smp_mb();
+	// spin_unlock(&ofs_msg_spinlock);
 }
 
 static inline int is_ofs_address_space(struct address_space *mapping) {
@@ -100,7 +105,6 @@ static inline void ofs_tag_address_space(struct address_space *mapping) {
 	// printk("lwg:%s:%d:....\n", __func__, __LINE__);
 	set_bit(AS_OFS, &mapping->flags);
 }
-
 extern phys_addr_t img_pa;
 static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
@@ -111,6 +115,7 @@ static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smc
 	switch(callid) {
 		case OPTEE_SMC_CALL_WITH_ARG:
 		case OFS_BENCH_START:
+		case OFS_NOTIFY_IMG:
 			/* lwg: These are not loaded into register due to the exeception
 			 * hanler in sec world don't load them */
 #ifdef OFS_DEBUG
@@ -190,11 +195,13 @@ static inline void free_ofs_context(struct tee_context *ctx) {
 
 /* TODO: add locks */
 static inline void ofs_prep_pg_request(struct ofs_msg *msg, pgoff_t index, phys_addr_t from, int request, int flag) {
+	// spin_lock(&ofs_msg_spinlock);
 	msg->op = OFS_PG_REQUEST;
 	msg->msg.page_request.flag  = flag;
 	msg->msg.page_request.index = index;
 	msg->msg.page_request.request = request;
 	msg->msg.page_request.pa = from;
+	// spin_unlock(&ofs_msg_spinlock);
 }
 
 static inline void ofs_prep_pg_alloc_request(struct ofs_msg *msg, pgoff_t index, int flag) {
@@ -235,12 +242,14 @@ static inline void ofs_pg_request(pgoff_t index, int flag) {
 
 /* TODO: add locks */
 static inline void ofs_prep_blk_request(struct ofs_msg *msg, sector_t block, int rw, phys_addr_t pa, int count) {
+	// spin_lock(&ofs_msg_spinlock);
 	msg->op = OFS_BLK_REQUEST;
 	/* TODO: extend this to a list batch them..? */
 	msg->msg.fs_response.blocknr = block;
 	msg->msg.fs_response.rw = rw;
 	msg->msg.fs_response.pa = pa;
 	msg->msg.fs_response.fd = count;
+	// spin_unlock(&ofs_msg_spinlock);
 }
 
 static inline void ofs_blk_read_write(sector_t block, phys_addr_t pa, int rw, int count) {

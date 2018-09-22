@@ -267,7 +267,7 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 	diff = timespec_sub(end, start);
 	if (ret) {
 		/* printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply); */
-		printk("rtt = %lld s, %lld ns\n", diff.tv_sec, diff.tv_nsec);
+		/* printk("rtt = %lld s, %lld ns\n", diff.tv_sec, diff.tv_nsec); */
 		kfree(reply);
 	}
 }

@@ -50,14 +50,12 @@ extern int	ofs_mkdir(const char *, int);
 extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
 extern struct tee_context *ofs_tee_context;
-
 extern struct cma cma_areas[MAX_CMA_AREAS];
 
-
-
+spinlock_t ofs_msg_spinlock;
 struct page *write_buf;
 unsigned long return_thread = 0;
-phys_addr_t img_pa = 0;
+extern phys_addr_t img_pa;
 
 struct files_struct ofs_files = {
 	.count		= ATOMIC_INIT(1),
@@ -91,6 +89,11 @@ static void dump_fs_img(void) {
 	kunmap(page);
 	return;
 }
+
+static void ofs_notify_img(phys_addr_t pa, struct arm_smccc_res *res) {
+	raw_ofs_switch(OFS_NOTIFY_IMG, pa, res);
+}
+
 
 static int fs_sanity_test(void *img) {
 #define F2FS_SUPER_MAGIC	0xF2F52010
@@ -169,6 +172,7 @@ static int init_fs_img(char *fs) {
 	struct page *tmp = pfn_to_page(start_pfn);
 	void *addr = kmap(tmp);
 	fs_sanity_test(addr + 0x400);
+	ofs_notify_img(img_pa, &ofs_res);
 	return 0;
 }
 
@@ -507,7 +511,8 @@ static int __init ofs_init(void)
 	struct tee_context *ctx;
 	int rc;
 	phys_addr_t shm_pa;
-	char img_name[] = "/home/linaro/f2fs.img";
+	/* char img_name[] = "/home/linaro/f2fs.img"; */
+	char img_name[] = "/home/linaro/ext2_4m.new2";
 	/* Init */
 	init_ofs_procfs();
 	init_rw_buf();
@@ -537,6 +542,7 @@ static int __init ofs_init(void)
 //	rc = ofs_bench();  /* kickstart */
 	ofs_network_client_init();
 	init_fs_img(img_name);
+	spin_lock_init(&ofs_msg_spinlock);
 
 	return 0;
 }

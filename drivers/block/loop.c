@@ -88,6 +88,8 @@
 extern struct tee_device *ofs_tee;
 extern struct tee_context *ofs_tee_context;
 static struct tee_shm *ofs_block;
+phys_addr_t img_pa = 0;
+EXPORT_SYMBOL(img_pa);
 
 static DEFINE_IDR(loop_index_idr);
 static DEFINE_MUTEX(loop_index_mutex);
