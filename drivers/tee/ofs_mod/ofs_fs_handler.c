@@ -51,8 +51,9 @@ static int ofs_fs_handler(void *data) {
 	/* this will mess up the shared mem */
 	ofs_obfuscate(request);
 	restore_ofs_msg(data, saved, sizeof(struct ofs_fs_request));
+	smp_mb();
 	/* dump_ofs_fs_request(data); */
-#if 0
+#if 1
 	if (conn_socket) {
 		ofs_fs_send(req);
 	}

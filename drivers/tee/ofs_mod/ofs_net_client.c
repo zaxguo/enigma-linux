@@ -1,6 +1,7 @@
 #include <ofs/ofs_net.h>
 #include <linux/slab.h>
 #include <ofs/ofs_msg.h>
+#include <linux/time.h>
 
 
 #define PORT		2325
@@ -119,7 +120,10 @@ read_again:
                 /* pr_info(" *** mtp | error while reading: %d | " */
                 /*         "tcp_client_receive *** \n", len); */
                 goto read_again;
-        }
+        } else if (len == 0) {
+			printk("len = 0.....read again...\n");
+			goto read_again;
+		}
 		ofs_printk("lwg:receiving %s\n", str);
 		/* TODO: parse multiple */
 		tok = strsep(&str, " ");
@@ -249,15 +253,21 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 	int ret;
 	char *reply = kmalloc(BUFSIZE, GFP_KERNEL);
 	char *fs_op = kmalloc(BUFSIZE, GFP_KERNEL);
+	struct timespec start, end, diff;
 	memset(reply, 0x0, BUFSIZE);
 	ret = serialize_ofs_fs_ops(req, fs_op);
 	/* pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op); */
+	getnstimeofday(&start);
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	kfree(fs_op);
 	/* expecting to see the response from the cloud */
+	/* mdelay(10); */
 	ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT);
+	getnstimeofday(&end);
+	diff = timespec_sub(end, start);
 	if (ret) {
 		/* printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply); */
+		printk("rtt = %lld s, %lld ns\n", diff.tv_sec, diff.tv_nsec);
 		kfree(reply);
 	}
 }

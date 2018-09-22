@@ -12,7 +12,7 @@
 #define LOWER	97
 #define UPPER	122
 #define CURR_OBFUS_LV	0
-#define MAX_OBFUS_LV	10
+#define MAX_OBFUS_LV	25
 #define MAX_OBFUS_OPS	6
 #define MIN(a,b)	(((a) < (b)) ? (a) : (b))
 
@@ -138,6 +138,12 @@ void ofs_obfuscate(int req) {
 				break;
 			default:
 				break;
+		}
+	}
+	if (req == OFS_FSYNC) {
+		for (i = 0; i < MIN(obfus_lv, decoy_file_cnt); i++) {
+			struct file *f = decoy_files[i];
+			vfs_fsync(f, 1);
 		}
 	}
 	ofs_printk("%s:finished!\n", __func__);

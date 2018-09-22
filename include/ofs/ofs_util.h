@@ -101,6 +101,7 @@ static inline void ofs_tag_address_space(struct address_space *mapping) {
 	set_bit(AS_OFS, &mapping->flags);
 }
 
+extern phys_addr_t img_pa;
 static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smccc_res *res) {
 	struct optee_rpc_param param = {};
 #ifdef OFS_DEBUG
@@ -110,9 +111,9 @@ static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smc
 	switch(callid) {
 		case OPTEE_SMC_CALL_WITH_ARG:
 		case OFS_BENCH_START:
-#ifdef OFS_DEBUG
 			/* lwg: These are not loaded into register due to the exeception
 			 * hanler in sec world don't load them */
+#ifdef OFS_DEBUG
 			param.a3 = 1;
 			param.a4 = 2;
 			param.a5 = 3;
@@ -121,6 +122,8 @@ static inline void raw_ofs_switch(u32 callid, phys_addr_t shm_pa, struct arm_smc
 #endif
 			/* Pair the paddr of allocated shared mem into register a1 and a2
 			 * The shm is used for message passing  */
+			WARN_ON(img_pa == 0);
+			reg_pair_from_64(&param.a4, &param.a5, img_pa);
 			reg_pair_from_64(&param.a1, &param.a2, shm_pa);
 			break;
 		case OPTEE_SMC_CALL_RETURN_FROM_RPC:

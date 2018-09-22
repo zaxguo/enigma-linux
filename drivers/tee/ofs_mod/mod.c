@@ -6,6 +6,9 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/kthread.h>
+#include <linux/cma.h>
+#include "../../../mm/cma.h"
+/* #include <linux/dma-contiguous.h> */
 
 #include <linux/slab.h> // mem
 #include <linux/tee_drv.h> // tee
@@ -48,8 +51,13 @@ extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
 extern struct tee_context *ofs_tee_context;
 
+extern struct cma cma_areas[MAX_CMA_AREAS];
+
+
+
 struct page *write_buf;
 unsigned long return_thread = 0;
+phys_addr_t img_pa = 0;
 
 struct files_struct ofs_files = {
 	.count		= ATOMIC_INIT(1),
@@ -63,6 +71,61 @@ struct files_struct ofs_files = {
 	},
 	.file_lock	= __SPIN_LOCK_UNLOCKED(ofs_files.file_lock),
 };
+
+static long long get_file_size(struct file* f) {
+	struct inode *inode = f->f_inode;
+	return inode->i_size;
+}
+
+
+static int init_fs_img(char *fs) {
+	struct page *page;
+	long long img_size, pos;
+	char buf[PAGE_SIZE];
+	int nr_pages, i, pfn, start_pfn, allocated;
+	struct file* f = filp_open(fs, O_RDWR, 0600);
+	if (!f) {
+		printk("no file...\n");
+		return -1;
+	}
+	img_size = get_file_size(f);
+	nr_pages = img_size >> PAGE_SHIFT;
+	allocated = 0;
+	printk("img size: %lld, trying to allocated %d pages...\n", img_size, nr_pages);
+	for (i = 0; i < MAX_CMA_AREAS; i++) {
+		struct cma *cma = &cma_areas[i];
+		page = cma_alloc(cma, nr_pages, 8);
+		if (page) {
+			printk("allocated mem at area %d\n", i);
+			allocated = 1;
+			break;
+		}
+		printk("could not alloc at area %d\n", i);
+		printk("cma count = %d\n", cma->count);
+	}
+	if (!allocated) {
+		printk("CMA alloc failed! abort...\n");
+		return -1;
+	}
+	pos = 0;
+	printk("%s:starting to read fs img...\n", __func__);
+	pfn = page_to_pfn(page);
+	start_pfn = page_to_pfn(page);
+	for (i = 0; i < nr_pages; i++, pfn++) {
+		struct page *tmp = pfn_to_page(pfn);
+		void *addr;
+		pos += kernel_read(f, pos, buf, PAGE_SIZE);
+		addr = kmap(page);
+		memcpy(addr, buf, PAGE_SIZE);
+		kunmap(tmp);
+	}
+	img_pa = start_pfn << PAGE_SHIFT;
+	printk("%s:%s loaded into CMA, starting pa = %08x...\n",
+			__func__,
+			fs,
+			img_pa);
+	return 0;
+}
 
 static int ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
@@ -154,7 +217,6 @@ static int ofs_bench(void *data) {
 	/* ofs_pg_request(0xdeadbeef, 0x1); */
 	/* Kick start the benchmark */
 	ofs_bench_start(shm_pa, &ofs_res);
-
 	/* TODO: may change this to indicate the end of the benchmark */
 	getnstimeofday(&start);
 	while(OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
@@ -397,7 +459,7 @@ static int __init ofs_init(void)
 	struct tee_context *ctx;
 	int rc;
 	phys_addr_t shm_pa;
-
+	char img_name[] = "/home/linaro/f2fs.img";
 	/* Init */
 	init_ofs_procfs();
 	init_rw_buf();
@@ -426,6 +488,8 @@ static int __init ofs_init(void)
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
 	ofs_network_client_init();
+	init_fs_img(img_name);
+
 	return 0;
 }
 

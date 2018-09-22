@@ -40,6 +40,7 @@
 #include "cma.h"
 
 struct cma cma_areas[MAX_CMA_AREAS];
+EXPORT_SYMBOL(cma_areas);
 unsigned cma_area_count;
 static DEFINE_MUTEX(cma_mutex);
 
@@ -429,6 +430,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 	pr_debug("%s(): returned %p\n", __func__, page);
 	return page;
 }
+EXPORT_SYMBOL(cma_alloc);
 
 /**
  * cma_release() - release allocated pages

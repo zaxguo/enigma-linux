@@ -15,7 +15,5 @@ extern int ofs_open(const char *, int);
 extern int ofs_read(int, char *, int);
 extern int ofs_fsync(int);
 
-
-
 #endif
 
