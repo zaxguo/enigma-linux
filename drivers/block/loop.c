@@ -448,7 +448,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			sector_t blocknr = blk_rq_pos(rq);
 			count = bvec.bv_len;
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
-			ofs_printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
+			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
 			ofs_blk_read_to_pa(blk_rq_pos(rq), pa, count);
 			len = copy_to_iter(va, bvec.bv_len, &i);
 			/* XXX mem barrier */

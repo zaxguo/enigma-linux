@@ -48,13 +48,16 @@ static int ofs_fs_handler(void *data) {
 	filename = req->filename;
 	ofs_printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
 	/* dump_ofs_fs_request(data); */
+#if 0
 	memcpy(saved, data, sizeof(struct ofs_fs_request));
 	/* this will mess up the shared mem */
 	ofs_obfuscate(request);
 	restore_ofs_msg(data, saved, sizeof(struct ofs_fs_request));
 	smp_mb();
+#endif
 	/* dump_ofs_fs_request(data); */
-#if 1
+	/* micro benchmarks... no net */
+#if 0
 	if (conn_socket) {
 		ofs_fs_send(req);
 	}
@@ -88,6 +91,14 @@ static int ofs_fs_handler(void *data) {
 	kfree(saved);
 	struct ofs_msg *msg = requests_to_msg(req, fs_request);
 	/* dirty */
+#if 0
+	/* memcpy(saved, data, sizeof(struct ofs_fs_request)); */
+	/* this will mess up the shared mem */
+	ofs_obfuscate(request);
+	/* restore_ofs_msg(data, saved, sizeof(struct ofs_fs_request)); */
+	smp_mb();
+#endif
+
 	if (msg->op != OFS_FS_RESPONSE) {
 		printk("%s:dirty fixing msg before returning...\n", __func__);
 		memcpy(msg, saved_msg, sizeof(struct ofs_msg));

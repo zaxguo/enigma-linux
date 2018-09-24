@@ -511,8 +511,10 @@ static int __init ofs_init(void)
 	struct tee_context *ctx;
 	int rc;
 	phys_addr_t shm_pa;
-	/* char img_name[] = "/home/linaro/f2fs.img"; */
-	char img_name[] = "/home/linaro/ext2_4m.new2";
+	char img_name[] = "/home/linaro/f2fs_micro.img";
+	/* an img with a small file, used to test stencil */
+	/* char img_name[] = "/home/linaro/f2fs_inline.img"; */
+	/* char img_name[] = "/home/linaro/ext2_4m.new2"; */
 	/* Init */
 	init_ofs_procfs();
 	init_rw_buf();
@@ -540,7 +542,7 @@ static int __init ofs_init(void)
 	ofs_printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
-	ofs_network_client_init();
+	/* ofs_network_client_init(); */
 	init_fs_img(img_name);
 	spin_lock_init(&ofs_msg_spinlock);
 	saved_msg = kmalloc(sizeof(struct ofs_msg), GFP_KERNEL);

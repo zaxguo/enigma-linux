@@ -512,7 +512,7 @@ retry:
 			return ERR_PTR(-ENOMEM);
 		goto retry;
 	}
-		
+
 	err = set(s, data);
 	if (err) {
 		spin_unlock(&sb_lock);
@@ -638,7 +638,7 @@ EXPORT_SYMBOL(iterate_supers_type);
 /**
  *	get_super - get the superblock of a device
  *	@bdev: device to get the superblock for
- *	
+ *
  *	Scans the superblock list and finds the superblock of the file system
  *	mounted on the device given. %NULL is returned if no match is found.
  */
@@ -728,7 +728,7 @@ restart:
 	spin_unlock(&sb_lock);
 	return NULL;
 }
- 
+
 struct super_block *user_get_super(dev_t dev)
 {
 	struct super_block *sb;
@@ -1025,6 +1025,7 @@ static int test_bdev_super(struct super_block *s, void *data)
 }
 
 
+/* lwg: deprecated... used when there is page-based ramdisk in sec world */
 static int ofs_mount(struct super_block *s) {
 	sector_t blockcnt;
 	void *vaddr, *head;
@@ -1036,13 +1037,18 @@ static int ofs_mount(struct super_block *s) {
 	int i, j, shm_size, npages, blocks_per_page;
 	struct tee_context *ctx;
 	struct tee_shm *disk_mem;
+	struct file_system_type *fs_type = s->s_type;
+
+	if (!strcmp(fs_type->name, "f2fs")) {
+		return 0;
+	}
 
 	sbi = (struct ext2_sb_info *)s->s_fs_info;
 	es = sbi->s_es;
 	BUG_ON(IS_ERR(es));
 	blocksize = s->s_blocksize;
 	blockcnt = es->s_blocks_count;
-	fs_size = blocksize * blockcnt; 
+	fs_size = blocksize * blockcnt;
 	shm_size = PAGE_SIZE;
 	WARN_ON(!IS_ALIGNED(fs_size, PAGE_SIZE));
 	npages =  fs_size >> PAGE_SHIFT;
@@ -1066,16 +1072,16 @@ static int ofs_mount(struct super_block *s) {
 		vaddr = disk_mem->kaddr;
 		printk("lwg:%s:%d:copying [%d] blk\n", __func__, __LINE__, i * blocks_per_page);
 		for (j = i * blocks_per_page; j < (i + 1) * blocks_per_page; j++) {
-			bh = sb_bread(s, j); 
+			bh = sb_bread(s, j);
 			memcpy(vaddr, bh->b_data, blocksize);
 			vaddr += blocksize;
 			smp_mb();
 		}
-		ofs_pg_copy_request(i, disk_mem->paddr, OFS_PG_COPY_TO_SEC); 
+		ofs_pg_copy_request(i, disk_mem->paddr, OFS_PG_COPY_TO_SEC);
 	}
 #if 0
 	for (i = 0; i < blockcnt; i++) {
-		bh = sb_bread(s, i); 
+		bh = sb_bread(s, i);
 		memcpy(vaddr, bh->b_data, blocksize);
 		vaddr += blocksize;
 		smp_mb();
@@ -1084,7 +1090,6 @@ static int ofs_mount(struct super_block *s) {
 	printk("lwg:%s:%d:disk img cpy completed\n", __func__, __LINE__);
 	/* free the mem used for copying page in/out */
 	tee_shm_free(disk_mem);
-	
 	return 0;
 }
 
@@ -1160,10 +1165,17 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 		printk("lwg:%s:%d:mounting OFS: %s\n", __func__, __LINE__, fs_type->name);
 		BUG_ON(s->s_flags & MS_OFS);
 	}
-	
+
+	if (!strcmp(fs_type->name, "f2fs")) {
+		is_ofs = 1;
+		printk("lwg:%s:%d:mounting OFS: %s\n", __func__, __LINE__, fs_type->name);
+		printk("logic block size = %ld, magic = %lx\n", s->s_blocksize, s->s_magic);
+		BUG_ON(s->s_flags & MS_OFS);
+	}
+
 	/* OFS mount, copy disk img to mem */
 	if (is_ofs) {
-		ofs_mount(s); 
+		ofs_mount(s);
 		/* this flag indicates init is done */
 		s->s_flags |= MS_OFS;
 	}

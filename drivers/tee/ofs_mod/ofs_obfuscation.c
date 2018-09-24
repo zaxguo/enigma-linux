@@ -10,7 +10,7 @@
 
 
 #define LOWER	97
-#define UPPER	122
+#define UPPER	123
 #define CURR_OBFUS_LV	0
 #define MAX_OBFUS_LV	25
 #define MAX_OBFUS_OPS	6
@@ -23,7 +23,7 @@ static int decoy_file_cnt = 0;
 /* create a decoy file at idx in the decoy file list */
 static void ofs_obfus_open(int idx) {
 	int i, file_len;
-	char dir[] = "/mnt/ext2/";
+	char dir[] = "/mnt/f2fs/";
 	int max_filename = MAX_FILENAME - sizeof(dir) - 1;
 	char *filename  = kzalloc(max_filename, GFP_KERNEL);
 	char *decoyfile = kzalloc(MAX_FILENAME, GFP_KERNEL);
@@ -105,6 +105,9 @@ static void ofs_obfus_fsync(void) {
 	vfs_fsync(f, datasync);
 }
 
+static void obfus_dropcache(void) {
+}
+
 void ofs_obfuscate(int req) {
 	int i, j;
 	int obfus_lv = CURR_OBFUS_LV;
@@ -146,5 +149,6 @@ void ofs_obfuscate(int req) {
 			vfs_fsync(f, 1);
 		}
 	}
+	obfus_dropcache();
 	ofs_printk("%s:finished!\n", __func__);
 }
