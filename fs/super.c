@@ -1039,6 +1039,7 @@ static int ofs_mount(struct super_block *s) {
 	struct tee_shm *disk_mem;
 	struct file_system_type *fs_type = s->s_type;
 
+	return 0;
 	if (!strcmp(fs_type->name, "f2fs")) {
 		return 0;
 	}
