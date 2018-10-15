@@ -48,7 +48,7 @@ static int ofs_fs_handler(void *data) {
 	filename = req->filename;
 	ofs_printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
 	/* dump_ofs_fs_request(data); */
-#if 0
+#if 1
 	memcpy(saved, data, sizeof(struct ofs_fs_request));
 	/* this will mess up the shared mem */
 	ofs_obfuscate(request);
@@ -57,7 +57,7 @@ static int ofs_fs_handler(void *data) {
 #endif
 	/* dump_ofs_fs_request(data); */
 	/* micro benchmarks... no net */
-#if 0
+#if 1
 	if (conn_socket) {
 		ofs_fs_send(req);
 	}

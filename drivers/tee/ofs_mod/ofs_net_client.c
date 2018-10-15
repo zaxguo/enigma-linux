@@ -7,7 +7,12 @@
 #define PORT		2325
 #define BUFSIZE		1024
 
+#define BATCH_SIZE	0xfff
+#define ALL_BUFFERD 0
+
+
 struct socket *conn_socket = NULL;
+static int batch_cnt = 0;
 
 /* unsigned char destip[5] = {10,42,1,1,'\0'}; [> fortwayne USB IP addr <] */
 unsigned char destip[5] = {128,46,76,40,'\0'}; /* fortwayne USB IP addr */
@@ -254,14 +259,24 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 	char *reply = kmalloc(BUFSIZE, GFP_KERNEL);
 	char *fs_op = kmalloc(BUFSIZE, GFP_KERNEL);
 	struct timespec start, end, diff;
+	/* not an fsync... */
+	if (req->request != OFS_FSYNC) {
+		if (batch_cnt++ < BATCH_SIZE) {
+			return 0;
+		} else {
+			/* reset batch counter */
+			batch_cnt = 0;
+		}
+	} else {
+		printk("%s:fsync...\n", __func__);
+	}
 	memset(reply, 0x0, BUFSIZE);
 	ret = serialize_ofs_fs_ops(req, fs_op);
 	/* pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op); */
 	getnstimeofday(&start);
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
 	kfree(fs_op);
-	/* expecting to see the response from the cloud */
-	/* mdelay(10); */
+	/* always expecting to see the response from the cloud */
 	ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT);
 	getnstimeofday(&end);
 	diff = timespec_sub(end, start);
