@@ -4,7 +4,7 @@
 #include <linux/kernel.h>
 
 
-#define OFS_BENCH	1
+// #define OFS_BENCH	1
 
 #ifndef OFS_BENCH
 #define ofs_printk(...) printk(__VA_ARGS__)
@@ -19,8 +19,11 @@ extern unsigned long return_thread;
 #define OFS_READ	3
 #define OFS_WRITE	4
 #define OFS_FSYNC	5
+#define OFS_STAT	6
+#define OFS_FSTAT	7
+#define OFS_MMAP	8
 
-#define MAX_FILENAME 99
+#define MAX_FILENAME 256
 
 /* OFS fs request: sec world --> normal world
  * a fs request contains 3 members:
@@ -34,7 +37,7 @@ struct ofs_fs_request {
 	char filename[MAX_FILENAME];
 	/* really ugly... */
 	int fd;
-	int count;
+	unsigned int count;
 };
 
 /* OFS fs response: normal world --> secure world */

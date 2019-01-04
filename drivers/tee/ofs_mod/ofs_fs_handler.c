@@ -19,6 +19,9 @@ static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 	"ofs_read",		 /* ofs_read  3 */
 	"ofs_write",	 /* ofs_write 4 */
 	"ofs_fsync",	 /* ofs_fsync 5 */
+	"ofs_stat",		 /* ofs_stat  6	*/
+	"ofs_fstat",	 /* ofs_fstat 7	*/
+	"ofs_mmap",		 /* ofs_mmap  8	*/
 	"X",
 };
 
@@ -46,12 +49,12 @@ static int ofs_fs_handler(void *data) {
 	req = data;
 	request = req->request;
 	filename = req->filename;
-	ofs_printk("lwg:%s:%s:[%s]\n", __func__, ofs_syscalls[req->request], filename);
+	ofs_printk("lwg:%s:%s:count = %lx\n", __func__, ofs_syscalls[req->request], req->count);
 	/* dump_ofs_fs_request(data); */
 #if 1
 	memcpy(saved, data, sizeof(struct ofs_fs_request));
 	/* this will mess up the shared mem */
-	ofs_obfuscate(request);
+	/* ofs_obfuscate(request); */
 	restore_ofs_msg(data, saved, sizeof(struct ofs_fs_request));
 	smp_mb();
 #endif
@@ -78,6 +81,15 @@ static int ofs_fs_handler(void *data) {
 			break;
 		case OFS_FSYNC:
 			ofs_fsync_handler(req);
+			break;
+		case OFS_STAT:
+			ofs_stat_handler(req);
+			break;
+		case OFS_FSTAT:
+			ofs_fstat_handler(req);
+			break;
+		case OFS_MMAP:
+			ofs_mmap_handler(req);
 			break;
 		default:
 			BUG();
