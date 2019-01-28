@@ -69,6 +69,13 @@ int ofs_fstat_handler(void *data) {
 	return 0;
 }
 
+
+/* After allocating memories from CMA we do a byte-wise comparison just in case */
+static ofs_mmap_sanity_test(void *dst, void *ref, size_t byte) {
+
+}
+
+/* We use CMA to handle MMAP allocation */
 int ofs_mmap_handler(void *data) {
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	struct page *page;
@@ -91,7 +98,7 @@ int ofs_mmap_handler(void *data) {
 		return -1;
 	}
 	img_size =  sz;
-	nr_pages = img_size >> PAGE_SHIFT;
+	nr_pages = (img_size >> PAGE_SHIFT) + 1; /* XXX */
 	allocated = 0;
 	printk("file size: %lx, trying to allocated %d pages...\n", sz, nr_pages);
 	for (i = 0; i < MAX_CMA_AREAS; i++) {
@@ -116,7 +123,6 @@ int ofs_mmap_handler(void *data) {
 	int count = 0;
 	for (i = 0; i < nr_pages; i++, pfn++) {
 		void *addr;
-		int count = 0;
 		struct page *tmp = pfn_to_page(pfn);
 		count = kernel_read(f, pos, buf, PAGE_SIZE);
 		pos += count;
@@ -125,10 +131,12 @@ int ofs_mmap_handler(void *data) {
 		kunmap(tmp);
 	}
 	img_pa = start_pfn << PAGE_SHIFT;
-	printk("%s:%d loaded into CMA, starting pa = %08x...\n",
+	printk("%s:%d loaded into CMA, starting pa = %08x, nr_pages = %d, size = %08x\n",
 			__func__,
 			fd,
-			img_pa);
+			img_pa,
+			nr_pages,
+			pos);
 	msg = requests_to_msg(req, fs_request);
 	ofs_mmap_response(msg, img_pa);
 	/* FIXME: dirty fix this */

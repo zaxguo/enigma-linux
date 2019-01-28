@@ -445,7 +445,8 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		/* directly change this to use data from secure world */
 		if (is_init) {
 			int ret = 0, count;
-			sector_t blocknr = blk_rq_pos(rq);
+			/* sector_t blocknr = blk_rq_pos(rq); */ /* XXX: bug....*/
+			sector_t blocknr = iter.iter.bi_sector;
 			count = bvec.bv_len;
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
 			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
