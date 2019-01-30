@@ -107,7 +107,7 @@ static int ofs_verify_block(int blknr, int rw) {
 	struct ofs_cloud_bio *tmp;
 	struct list_head *pos, *q;
 	if (list_empty(&ofs_cloud_bio_list)) {
-		ofs_printk("%s:%d:!!! list empty!!!\n", __func__, __LINE__);
+		/* ofs_printk("%s:%d:!!! list empty!!!\n", __func__, __LINE__); */
 		return -1;
 	}
 	list_for_each_safe(pos, q, &ofs_cloud_bio_list) {
@@ -353,7 +353,8 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 			count = bvec.bv_len;
 			/* lwg: copy to shm */
 			bw = copy_from_iter(va, bvec.bv_len, &i);
-			blocknr = blk_rq_pos(rq);
+			/* blocknr = blk_rq_pos(rq); */
+			blocknr = iter.iter.bi_sector;
 			smp_wmb();
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_WRITE);
 			ofs_blk_write_from_pa(blocknr, pa, count);
@@ -404,6 +405,19 @@ static int lo_write_transfer(struct loop_device *lo, struct request *rq,
 	return ret;
 }
 
+static uint32_t ofs_calc_checksum(struct bio_vec *bvec) {
+	uint32_t ret = 0;
+	unsigned int count = bvec->bv_len;
+	uint8_t *byte = kmap(bvec->bv_page);
+	int i = 0;
+	for (i = 0; i < count; i++) {
+		ret += byte[i]; /* byte-wise addition */
+	}
+	kunmap(bvec->bv_page);
+	return ret;
+
+}
+
 static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		loff_t pos)
 {
@@ -423,6 +437,9 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	is_init = is_ofs_init(sb);
 	ctx = ofs_tee_context;
 
+	/* debugging */
+	/* is_init = 0; */
+
 	if (is_init) {
 		/* is_init = sb->s_flags & MS_OFS; */
 		/* printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__); */
@@ -440,8 +457,10 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		va = tee_shm_get_va(shm, 0);
 	}
 
+	printk("lwg:%s:%d:start\n", __func__, __LINE__);
 	rq_for_each_segment(bvec, rq, iter) {
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
+		sector_t _blocknr = iter.iter.bi_sector;
 		/* directly change this to use data from secure world */
 		if (is_init) {
 			int ret = 0, count;
@@ -450,18 +469,26 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			count = bvec.bv_len;
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
 			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
-			ofs_blk_read_to_pa(blk_rq_pos(rq), pa, count);
+			/* ofs_blk_read_to_pa(blk_rq_pos(rq), pa, count); */
+			ofs_blk_read_to_pa(blocknr, pa, count);
+			smp_wmb();
 			len = copy_to_iter(va, bvec.bv_len, &i);
+			iov_iter_advance(&i, len);
 			/* XXX mem barrier */
 			smp_wmb();
 			/* tee_shm_free(shm); */
 			goto ofs_read_done;
 		}
+		printk("lwg:%s:%d:read blk [%llx], len = [%d]\n", __func__, __LINE__, _blocknr, bvec.bv_len);
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
 ofs_read_done:
 		if (len < 0)
 			return len;
 		flush_dcache_page(bvec.bv_page);
+
+		uint32_t checksum;
+		checksum = ofs_calc_checksum(&bvec);
+		printk("lwg:%s:%d:checksum = %08x\n", __func__, __LINE__, checksum);
 
 		if (len != bvec.bv_len) {
 			struct bio *bio;
@@ -472,6 +499,7 @@ ofs_read_done:
 		}
 		cond_resched();
 	}
+	printk("lwg:%s:%d:end\n", __func__, __LINE__);
 
 	return 0;
 }
