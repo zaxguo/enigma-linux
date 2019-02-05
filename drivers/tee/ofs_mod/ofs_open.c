@@ -13,6 +13,8 @@
 
 #define OFS_FD 0
 
+int opened = 0;
+
 extern struct cma cma_areas[MAX_CMA_AREAS];
 /* TODO: refactor for code reuse */
 static inline void ofs_open_response(struct ofs_msg *msg, int fd) {
@@ -59,12 +61,12 @@ int ofs_fstat_handler(void *data) {
 	int fd =  req->fd;
 	struct file *filp = ofs_fget(fd);
 	if (filp) {
-		printk("%s:%d:fd = %d\n", __func__, __LINE__, fd);
+		/* printk("%s:%d:fd = %d\n", __func__, __LINE__, fd); */
 		int rc	= vfs_getattr(&filp->f_path, &st);
 		struct ofs_msg *msg = requests_to_msg(req, fs_request);
 		ofs_stat_response(msg, st.size);
 		ofs_res.a3 = return_thread;
-		printk("lwg:%s:%d:[%d] has size %llx\n", __func__, __LINE__, fd, st.size);
+		/* printk("lwg:%s:%d:[%d] has size %llx\n", __func__, __LINE__, fd, st.size); */
 	}
 	return 0;
 }
@@ -153,7 +155,7 @@ int ofs_open_handler(void *data) {
 	struct file *file;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	flag = req->flag;
-	fd = OFS_FD;
+	fd = opened;
 	/* ofs_open does not work properly with kernel space open, fallback to this */
 	file = filp_open(req->filename, flag | O_SYNC, 0600);
 	set_ofs_file(file);
@@ -167,6 +169,7 @@ int ofs_open_handler(void *data) {
 	ofs_open_response(msg, fd);
 	/* FIXME: dirty fix this */
 	ofs_res.a3 = return_thread;
+	++opened;
 	return 0;
 }
 

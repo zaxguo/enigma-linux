@@ -43,13 +43,15 @@ static int ofs_fs_handler(void *data) {
 	char *filename;
 	int request, ret;
 	struct ofs_fs_request *req;
+	struct timespec start,end,diff;
 	struct ofs_fs_request *saved = kmalloc(sizeof(*req), GFP_KERNEL);
 	/* struct ofs_fs_request *req = (struct ofs_fs_request *)data; */
 	/* pointer to data will be modified by subsequent fs calls */
+	getnstimeofday(&start);
 	req = data;
 	request = req->request;
 	filename = req->filename;
-	ofs_printk("lwg:%s:%s:count = %lx\n", __func__, ofs_syscalls[req->request], req->count);
+	/* ofs_printk("lwg:%s:%s:count = %lx\n", __func__, ofs_syscalls[req->request], req->count); */
 	/* dump_ofs_fs_request(data); */
 #if 1
 	memcpy(saved, data, sizeof(struct ofs_fs_request));
@@ -115,6 +117,9 @@ static int ofs_fs_handler(void *data) {
 		printk("%s:dirty fixing msg before returning...\n", __func__);
 		memcpy(msg, saved_msg, sizeof(struct ofs_msg));
 	}
+	getnstimeofday(&end);
+	diff = timespec_sub(end, start);
+	printk("req [%d] handling time = %ld s, %ld ns\n", request, diff.tv_sec, diff.tv_nsec);
 	ofs_switch_resume(&ofs_res);
 	return 0;
 }

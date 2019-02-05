@@ -457,7 +457,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		va = tee_shm_get_va(shm, 0);
 	}
 
-	printk("lwg:%s:%d:start\n", __func__, __LINE__);
+	/* printk("lwg:%s:%d:start\n", __func__, __LINE__); */
 	rq_for_each_segment(bvec, rq, iter) {
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
 		sector_t _blocknr = iter.iter.bi_sector;
@@ -468,7 +468,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			sector_t blocknr = iter.iter.bi_sector;
 			count = bvec.bv_len;
 			ret = ofs_verify_block((int)blocknr, OFS_BLK_READ);
-			printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret);
+			/* printk("lwg:%s:%d:read blk [%llx], len = [%d], pa = [%08lx], verify = [%d]\n", __func__, __LINE__, blocknr, bvec.bv_len, pa, ret); */
 			/* ofs_blk_read_to_pa(blk_rq_pos(rq), pa, count); */
 			ofs_blk_read_to_pa(blocknr, pa, count);
 			smp_wmb();
@@ -479,16 +479,16 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			/* tee_shm_free(shm); */
 			goto ofs_read_done;
 		}
-		printk("lwg:%s:%d:read blk [%llx], len = [%d]\n", __func__, __LINE__, _blocknr, bvec.bv_len);
+		/* printk("lwg:%s:%d:read blk [%llx], len = [%d]\n", __func__, __LINE__, _blocknr, bvec.bv_len); */
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
 ofs_read_done:
 		if (len < 0)
 			return len;
 		flush_dcache_page(bvec.bv_page);
 
-		uint32_t checksum;
-		checksum = ofs_calc_checksum(&bvec);
-		printk("lwg:%s:%d:checksum = %08x\n", __func__, __LINE__, checksum);
+		/* uint32_t checksum; */
+		/* checksum = ofs_calc_checksum(&bvec); */
+		/* printk("lwg:%s:%d:checksum = %08x\n", __func__, __LINE__, checksum); */
 
 		if (len != bvec.bv_len) {
 			struct bio *bio;
@@ -499,7 +499,7 @@ ofs_read_done:
 		}
 		cond_resched();
 	}
-	printk("lwg:%s:%d:end\n", __func__, __LINE__);
+	/* printk("lwg:%s:%d:end\n", __func__, __LINE__); */
 
 	return 0;
 }

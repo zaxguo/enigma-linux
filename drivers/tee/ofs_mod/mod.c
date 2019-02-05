@@ -267,10 +267,10 @@ static int ofs_bench(void *data) {
 	/* Kick start the benchmark */
 	ofs_bench_start(shm_pa, &ofs_res);
 	/* TODO: may change this to indicate the end of the benchmark */
-	getnstimeofday(&start);
 	while(OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
+		/* getnstimeofday(&start); */
 		return_thread = ofs_res.a3;
-		ofs_printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3);
+		/* ofs_printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3); */
 #if 0
 		printk("lwg:%s:catch an RPC, dump return value:\n", __func__);
 		printk("lwg:a0 = %08lx\n", ofs_res.a0);
@@ -304,10 +304,10 @@ static int ofs_bench(void *data) {
 		/* One considertion of not swithing here is that kthread is async,
 		 * which may lead to premature resume */
 		/* ofs_switch_resume(&ofs_res); */
+		/* getnstimeofday(&end); */
+		/* diff = timespec_sub(end, start); */
+		/* printk("req handling time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec); */
 	}
-	getnstimeofday(&end);
-	diff = timespec_sub(end, start);
-	printk("elapse time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec);
 	{
 		rc = ofs_res.a0;
 	}
@@ -511,6 +511,7 @@ static int __init ofs_init(void)
 	struct tee_context *ctx;
 	int rc;
 	phys_addr_t shm_pa;
+	/* char img_name[] = "/home/linaro/f2fs.img"; */
 	/* char img_name[] = "/home/linaro/f2fs_micro.img"; */
 	/* an img with a small file, used to test stencil */
 	/* char img_name[] = "/home/linaro/f2fs_inline.img"; */
