@@ -9,6 +9,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/mman.h>
 #include <linux/cma.h>
+#include <asm/memory.h>
 #include "../../../mm/cma.h"
 
 #define OFS_FD 0
@@ -77,6 +78,24 @@ static ofs_mmap_sanity_test(void *dst, void *ref, size_t byte) {
 
 }
 
+int ofs_munmap_handler(void *data) {
+	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
+	struct page *page;
+	struct ofs_msg *msg;
+	uint8_t buf[PAGE_SIZE];
+	/* XXX */
+	uint32_t pa = req->fd;
+	unsigned int sz = req->count;
+	int nr_pages = (sz >> PAGE_SHIFT) + 1; /* XXX */
+	page = phys_to_page(pa);
+	cma_release(&cma_areas[0], page, nr_pages);
+	msg = requests_to_msg(req, fs_request);
+	ofs_mmap_response(msg, 0);
+	/* FIXME: dirty fix this */
+	ofs_res.a3 = return_thread;
+	return 0;
+}
+
 /* We use CMA to handle MMAP allocation */
 int ofs_mmap_handler(void *data) {
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
@@ -85,10 +104,7 @@ int ofs_mmap_handler(void *data) {
 	struct ofs_msg *msg;
 	uint8_t buf[PAGE_SIZE];
 	int nr_pages, i, pfn, start_pfn, allocated;
-
-
 	printk("lwg:%s:%d:fd = %d, count = %08x, flag = %08x\n", __func__, __LINE__, req->fd, req->count, req->flag);
-
 	int fd = req->fd;
 	unsigned int sz = req->count;
 	int flags = req->flag;

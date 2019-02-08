@@ -1173,7 +1173,7 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 		printk("logic block size = %ld, magic = %lx\n", s->s_blocksize, s->s_magic);
 		BUG_ON(s->s_flags & MS_OFS);
 	}
-	is_ofs = 0;
+	/* is_ofs = 0; */
 
 	/* OFS mount, copy disk img to mem */
 	if (is_ofs) {

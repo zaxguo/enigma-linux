@@ -265,10 +265,10 @@ static int ofs_bench(void *data) {
 	/* prepare the page request */
 	/* ofs_pg_request(0xdeadbeef, 0x1); */
 	/* Kick start the benchmark */
+	getnstimeofday(&start);
 	ofs_bench_start(shm_pa, &ofs_res);
 	/* TODO: may change this to indicate the end of the benchmark */
 	while(OPTEE_SMC_RETURN_IS_RPC(ofs_res.a0)) {
-		/* getnstimeofday(&start); */
 		return_thread = ofs_res.a3;
 		/* ofs_printk("lwg:%s:%d:RPC from sec thread [%d], start normal world fs\n", __func__, __LINE__, ofs_res.a3); */
 #if 0
@@ -304,13 +304,14 @@ static int ofs_bench(void *data) {
 		/* One considertion of not swithing here is that kthread is async,
 		 * which may lead to premature resume */
 		/* ofs_switch_resume(&ofs_res); */
-		/* getnstimeofday(&end); */
-		/* diff = timespec_sub(end, start); */
-		/* printk("req handling time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec); */
 	}
 	{
 		rc = ofs_res.a0;
 	}
+	getnstimeofday(&end);
+	diff = timespec_sub(end, start);
+	printk("req handling time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec);
+
 	/* Finish handling, returning to secure world */
 #if 0
 	/* Testing code, to see if a block request can be passed back */
@@ -515,7 +516,9 @@ static int __init ofs_init(void)
 	/* char img_name[] = "/home/linaro/f2fs_micro.img"; */
 	/* an img with a small file, used to test stencil */
 	/* char img_name[] = "/home/linaro/f2fs_inline.img"; */
-	char img_name[] = "/home/linaro/ext2_4m.new2";
+	/* char img_name[] = "/home/linaro/ext2_4m.new2"; */
+	/* char img_name[] = "/home/linaro/pic.img"; */
+	char img_name[] = "/home/linaro/pic_4m.img";
 	/* Init */
 	init_ofs_procfs();
 	init_rw_buf();

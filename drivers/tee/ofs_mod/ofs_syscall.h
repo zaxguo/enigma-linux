@@ -4,7 +4,7 @@
 #include <linux/syscalls.h>
 #include <linux/file.h>
 
-#define OFS_MAX_SYSCALLS		10
+#define OFS_MAX_SYSCALLS		11
 
 extern struct files_struct ofs_files;
 

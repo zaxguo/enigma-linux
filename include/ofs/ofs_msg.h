@@ -22,6 +22,7 @@ extern unsigned long return_thread;
 #define OFS_STAT	6
 #define OFS_FSTAT	7
 #define OFS_MMAP	8
+#define OFS_MUNMAP	9
 
 #define MAX_FILENAME 256
 

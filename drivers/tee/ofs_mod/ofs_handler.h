@@ -21,6 +21,7 @@ int ofs_fsync_handler(void *);
 int ofs_stat_handler(void *);
 int ofs_fstat_handler(void *);
 int ofs_mmap_handler(void *);
+int ofs_munmap_handler(void *);
 int ofs_handle_fs_msg(struct ofs_msg *);
 
 

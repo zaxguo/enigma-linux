@@ -7,7 +7,7 @@
 #define PORT		2325
 #define BUFSIZE		1024
 
-#define BATCH_SIZE	0xfff
+#define BATCH_SIZE	0x1
 #define ALL_BUFFERD 0
 
 
@@ -15,7 +15,8 @@ struct socket *conn_socket = NULL;
 static int batch_cnt = 0;
 
 /* unsigned char destip[5] = {10,42,1,1,'\0'}; [> fortwayne USB IP addr <] */
-unsigned char destip[5] = {128,46,76,40,'\0'}; /* fortwayne USB IP addr */
+/* unsigned char destip[5] = {128,46,76,40,'\0'}; [> fortwayne USB IP addr <] */
+unsigned char destip[5] = {128,46,76,31,'\0'}; /* fortwayne USB IP addr */
 
 
 int ofs_cloud_bio_del_all(void) {
@@ -118,7 +119,7 @@ static int tcp_client_receive(struct socket *sock, char *str,\
 
 read_again:
         //len = sock_recvmsg(sock, &msg, max_size, 0);
-        len = kernel_recvmsg(sock, &msg, &vec, 1, max_size, flags);
+        len = kernel_recvmsg(sock, &msg, &vec, 1, 5, flags);
 
         if(len == -EAGAIN || len == -ERESTARTSYS)
         {
@@ -254,11 +255,23 @@ static void test_ofs_client_send(void) {
 	kfree(fs_op);
 }
 
+static void ofs_set_msg_flag(int req, unsigned long *flag) {
+	if (req == OFS_FSYNC) {
+		*flag = MSG_WAITALL;
+	} else if (req == OFS_MMAP) {
+		*flag = MSG_WAITALL;
+	} else {
+		*flag = MSG_DONTWAIT;
+	}
+	*flag = MSG_DONTWAIT;
+}
+
 int ofs_fs_send(struct ofs_fs_request *req) {
 	int ret;
 	char *reply = kmalloc(BUFSIZE, GFP_KERNEL);
 	char *fs_op = kmalloc(BUFSIZE, GFP_KERNEL);
 	struct timespec start, end, diff;
+	unsigned long flag;
 	/* not an fsync... */
 	if (req->request != OFS_FSYNC) {
 		if (batch_cnt++ < BATCH_SIZE) {
@@ -270,19 +283,22 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 	} else {
 		printk("%s:fsync...\n", __func__);
 	}
+	ofs_set_msg_flag(req->request, &flag);
 	memset(reply, 0x0, BUFSIZE);
 	ret = serialize_ofs_fs_ops(req, fs_op);
-	/* pr_info("lwg:%s:sending [%s]..\n", __func__, fs_op); */
+	pr_info("lwg:%s:sending [%s].., flag = %lx\n", __func__, fs_op, flag);
 	getnstimeofday(&start);
-	tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT);
+	/* tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT); */
+	tcp_client_send(conn_socket, fs_op, strlen(fs_op), flag);
 	kfree(fs_op);
 	/* always expecting to see the response from the cloud */
-	ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT);
+	/* ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT); */
+	ret = tcp_client_receive(conn_socket, reply, flag);
 	getnstimeofday(&end);
 	diff = timespec_sub(end, start);
 	if (ret) {
-		/* printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply); */
-		/* printk("rtt = %lld s, %lld ns\n", diff.tv_sec, diff.tv_nsec); */
+		printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply);
+		printk("rtt = %lld s, %lld ns\n", diff.tv_sec, diff.tv_nsec);
 		kfree(reply);
 	}
 }

@@ -22,6 +22,7 @@ static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 	"ofs_stat",		 /* ofs_stat  6	*/
 	"ofs_fstat",	 /* ofs_fstat 7	*/
 	"ofs_mmap",		 /* ofs_mmap  8	*/
+	"ofs_munmap",	/* ofs_munmap  9	*/
 	"X",
 };
 
@@ -92,6 +93,9 @@ static int ofs_fs_handler(void *data) {
 			break;
 		case OFS_MMAP:
 			ofs_mmap_handler(req);
+			break;
+		case OFS_MUNMAP:
+			ofs_munmap_handler(req);
 			break;
 		default:
 			BUG();

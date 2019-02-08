@@ -455,6 +455,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		BUG_ON(pa == 0);
 		/* printk("lwg:%s:%d:alloc shm @ [%p], pa == [%08lx]\n", __func__, __LINE__, shm, pa); */
 		va = tee_shm_get_va(shm, 0);
+		/* printk("lwg:ofs initialized!!\n"); */
 	}
 
 	/* printk("lwg:%s:%d:start\n", __func__, __LINE__); */
@@ -497,7 +498,7 @@ ofs_read_done:
 				zero_fill_bio(bio);
 			break;
 		}
-		cond_resched();
+		/* cond_resched(); */
 	}
 	/* printk("lwg:%s:%d:end\n", __func__, __LINE__); */
 
