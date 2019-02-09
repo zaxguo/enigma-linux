@@ -119,7 +119,11 @@ static int tcp_client_receive(struct socket *sock, char *str,\
 
 read_again:
         //len = sock_recvmsg(sock, &msg, max_size, 0);
-        len = kernel_recvmsg(sock, &msg, &vec, 1, 5, flags);
+        len = kernel_recvmsg(sock, &msg, &vec, 1, 4, flags);
+
+		if (len < 4 && flags == MSG_WAITALL) {
+			len += kernel_recvmsg(sock, &msg, &vec, 1, 4 - len, flags);
+		}
 
         if(len == -EAGAIN || len == -ERESTARTSYS)
         {
@@ -130,7 +134,7 @@ read_again:
 			printk("len = 0.....read again...\n");
 			goto read_again;
 		}
-		ofs_printk("lwg:receiving %s\n", str);
+		ofs_printk("lwg:receiving %s, len =  %d\n", str, len);
 		/* TODO: parse multiple */
 		tok = strsep(&str, " ");
 		while(tok != NULL) {
@@ -263,7 +267,7 @@ static void ofs_set_msg_flag(int req, unsigned long *flag) {
 	} else {
 		*flag = MSG_DONTWAIT;
 	}
-	*flag = MSG_DONTWAIT;
+	/* *flag = MSG_DONTWAIT; */
 }
 
 int ofs_fs_send(struct ofs_fs_request *req) {

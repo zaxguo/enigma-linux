@@ -310,7 +310,7 @@ static int ofs_bench(void *data) {
 	}
 	getnstimeofday(&end);
 	diff = timespec_sub(end, start);
-	printk("req handling time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec);
+	printk("benchmark time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec);
 
 	/* Finish handling, returning to secure world */
 #if 0
@@ -547,7 +547,7 @@ static int __init ofs_init(void)
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
 //	/* lwg: try no networked */
-	/* ofs_network_client_init(); */
+	ofs_network_client_init();
 	init_fs_img(img_name);
 	spin_lock_init(&ofs_msg_spinlock);
 	saved_msg = kmalloc(sizeof(struct ofs_msg), GFP_KERNEL);
