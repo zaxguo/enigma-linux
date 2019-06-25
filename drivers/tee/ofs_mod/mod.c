@@ -37,12 +37,15 @@
 #include "ofs_net.h"
 #include <linux/dma-mapping.h>
 #include "ofs_syscall.h"
+#include "tee_header.h"
 
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("LWG");
 MODULE_DESCRIPTION("OFS Normal World Handler Interacting with TEE");
 
+
+#if  0
 extern struct tee_device *ofs_tee;
 extern struct tee_shm *tee_shm_alloc(struct tee_context *ctx, size_t size, u32 flags);
 extern int tee_shm_get_pa(struct tee_shm *shm, size_t off, phys_addr_t *pa);
@@ -51,6 +54,7 @@ extern struct tee_shm *ofs_shm; /* Global message passing shared memory */
 extern struct arm_smccc_res ofs_res;
 extern struct tee_context *ofs_tee_context;
 extern struct cma cma_areas[MAX_CMA_AREAS];
+#endif
 
 spinlock_t ofs_msg_spinlock;
 struct page *write_buf;
@@ -79,10 +83,11 @@ static long long get_file_size(struct file* f) {
 static void dump_fs_img(void) {
 	int i, pfn;
 	uint8_t *byte;
+	struct page *page;
 	pfn = img_pa >> PAGE_SHIFT;
-	struct page *page = pfn_to_page(pfn);
+    page	= pfn_to_page(pfn);
 	byte = kmap(page);
-	printk("start pfn = %x, pfn = %x\n", img_pa, pfn);
+	printk("start pa = %pa, pfn = %x\n", &img_pa, pfn);
 	for (i = 0x400; i < 0x40f; i++) {
 		printk("%x at %x\n", *(byte +i), i);
 	}
@@ -102,29 +107,20 @@ static int fs_sanity_test(void *img) {
 	int magic = *(int *)img;
 	if (magic == F2FS_SUPER_MAGIC) {
 		printk("loaded F2FS!\n");
-	} else {
-		if (*(__le16 *)(img + EXT2_SB_MAGIC_OFFSET) ==
+	} else if (*(__le16 *)(img + EXT2_SB_MAGIC_OFFSET) ==
 			cpu_to_le16(EXT2_SUPER_MAGIC)) {
 		printk("loaded EXT FS!\n");
-		}
+	} else { /* FS unknown to us */
+		WARN_ON(1);
+		return -1;
 	}
+	return 0;
 }
 
 
-static int init_fs_img(char *fs) {
+static struct page *ofs_alloc_cma(int nr_pages) {
+	int allocated, i;
 	struct page *page;
-	long long img_size, pos;
-	uint8_t buf[PAGE_SIZE];
-	int nr_pages, i, pfn, start_pfn, allocated;
-	struct file* f = filp_open(fs, O_RDWR, 0600);
-	if (!f) {
-		printk("no file...\n");
-		return -1;
-	}
-	img_size = get_file_size(f);
-	nr_pages = img_size >> PAGE_SHIFT;
-	allocated = 0;
-	printk("img size: %lld, trying to allocated %d pages...\n", img_size, nr_pages);
 	for (i = 0; i < MAX_CMA_AREAS; i++) {
 		struct cma *cma = &cma_areas[i];
 		page = cma_alloc(cma, nr_pages, 8);
@@ -134,17 +130,31 @@ static int init_fs_img(char *fs) {
 			break;
 		}
 		printk("could not alloc at area %d\n", i);
-		printk("cma count = %d\n", cma->count);
+		printk("cma count = %ld\n", cma->count);
 	}
 	if (!allocated) {
 		printk("CMA alloc failed! abort...\n");
-		return -1;
+		return 0;
 	}
-	pos = 0;
+	for (i = 0; i < MAX_CMA_AREAS; i++) {
+		struct cma *cma = &cma_areas[i];
+		unsigned long count = cma->count;
+		printk("[%d]: %ld\n", i, count);
+	}
+	return page;
+}
+
+
+static int ofs_copy_to_cma(struct file *f, struct page *page, int nr_pages) {
+	int pos, i, pfn;
+	uint8_t *buf;
+	pos = i = 0;
 	pfn = page_to_pfn(page);
-	start_pfn = page_to_pfn(page);
+	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!buf) {
+		return -ENOMEM;
+	}
 	printk("%s:starting to read fs img...\n", __func__);
-	int count = 0;
 	for (i = 0; i < nr_pages; i++, pfn++) {
 		void *addr;
 		int count = 0;
@@ -163,8 +173,31 @@ static int init_fs_img(char *fs) {
 		}
 		kunmap(tmp);
 	}
+	return 0;
+}
+
+
+static int init_fs_img(char *fs) {
+	struct page *page;
+	long long img_size;
+	/* uint8_t buf[PAGE_SIZE]; */
+	int nr_pages, start_pfn;
+	struct file* f = filp_open(fs, O_RDWR, 0600);
+	if (!f) {
+		printk("no file...\n");
+		return -1;
+	}
+	img_size = get_file_size(f);
+	nr_pages = img_size >> PAGE_SHIFT;
+	printk("img size: %lld, trying to allocated %d pages...\n", img_size, nr_pages);
+	page = ofs_alloc_cma(nr_pages);
+	if (!page) {
+		printk("%d:%s:cma allocation failed! Check CMA configuration\n", __LINE__, __func__);
+	}
+	start_pfn = page_to_pfn(page);
+	ofs_copy_to_cma(f, page, nr_pages);
 	img_pa = start_pfn << PAGE_SHIFT;
-	printk("%s:%s loaded into CMA, starting pa = %08x...\n",
+	printk("%s:%s loaded into CMA, starting pa = %llx...\n",
 			__func__,
 			fs,
 			img_pa);
@@ -176,7 +209,7 @@ static int init_fs_img(char *fs) {
 	return 0;
 }
 
-static int ofs_tee_open(struct tee_device *tee) {
+static int __maybe_unused ofs_tee_open(struct tee_device *tee) {
 	struct tee_context *ofs_context;
 	struct tee_ioctl_invoke_arg arg;
 	struct tee_param param;
@@ -328,7 +361,7 @@ static int ofs_bench(void *data) {
 	return rc;
 }
 
-static void read_file(void) {
+static void __maybe_unused read_file(void) {
 	struct file *f;
 	struct inode *ino;
 //	char buf[128];
@@ -343,7 +376,7 @@ static void read_file(void) {
 	return;
 }
 
-static void test_page(void)  {
+static void __maybe_unused test_page(void)  {
 	struct page *page;
 	int dump_size = 0x2;
 	int i;
@@ -367,7 +400,7 @@ static void test_page(void)  {
 	}
 }
 
-static void test_cma(void) {
+static void __maybe_unused test_cma(void) {
 	void *vaddr;
 	struct device *dev;
 	dma_addr_t dma_addr;
@@ -512,13 +545,18 @@ static int __init ofs_init(void)
 	struct tee_context *ctx;
 	int rc;
 	phys_addr_t shm_pa;
-	/* char img_name[] = "/home/linaro/f2fs.img"; */
+	/* char img_name[] = "/home/linaro/f2fs-pic.img"; */
 	/* char img_name[] = "/home/linaro/f2fs_micro.img"; */
 	/* an img with a small file, used to test stencil */
 	/* char img_name[] = "/home/linaro/f2fs_inline.img"; */
 	/* char img_name[] = "/home/linaro/ext2_4m.new2"; */
+	char img_name[] = "/home/linaro/ext2.img";
 	/* char img_name[] = "/home/linaro/pic.img"; */
-	char img_name[] = "/home/linaro/pic_4m.img";
+	/* char img_name[] = "/home/linaro/pic_4m.img"; */
+	/* char img_name[] = "/home/linaro/pic-480p.img"; */
+
+	printk("lwg:%d:%s:init loading fs img %s\n", __LINE__, __func__, img_name);
+
 	/* Init */
 	init_ofs_procfs();
 	init_rw_buf();
@@ -544,10 +582,23 @@ static int __init ofs_init(void)
 	}
 	printk(KERN_INFO"lwg:%s:OFS init sucess:----------------------------------\n",__func__);
 	ofs_printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
+	/* Profiling world switch */
+#if 0
+	int i;
+	struct timespec start, end, diff;
+	getnstimeofday(&start);
+	for (i = 0; i < 1000000; i++) {
+		arm_smccc_smc(0, 0, 0, 0, 0, 0, 0, 0, &ofs_res);
+	}
+	getnstimeofday(&end);
+	diff = timespec_sub(end, start);
+	printk("benchmark time = %ld s, %ld ns\n", diff.tv_sec, diff.tv_nsec);
+#endif
+
 //	ofs_pg_request(0x0, 1);
 //	rc = ofs_bench();  /* kickstart */
 //	/* lwg: try no networked */
-	ofs_network_client_init();
+	/* ofs_network_client_init(); */
 	init_fs_img(img_name);
 	spin_lock_init(&ofs_msg_spinlock);
 	saved_msg = kmalloc(sizeof(struct ofs_msg), GFP_KERNEL);

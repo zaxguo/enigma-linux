@@ -106,16 +106,17 @@ int ofs_write_handler(void *data) {
 	uint8_t *b;
 	struct ofs_fs_request *req = (struct ofs_fs_request *)data;
 	/* set to be non-preemptible, while ext2_get_block in ofs_write will sleep ! */
-	buf = kmap(write_buf);
+	/* buf = kmap(write_buf); */
 	fd = req->fd;
 	count = req->count;
+	buf = kmalloc(count, GFP_KERNEL);
 	ofs_printk("lwg:%s:%d:write [%d] bytes to [%d]\n", __func__, __LINE__, count, fd);
 	memset(buf, 0x63, count); /* dummy data */
 	count = ofs_write(fd, buf, count);
 	msg = requests_to_msg(req, fs_request);
 	ofs_write_response(msg, count);
 	ofs_res.a3 = return_thread;
-	kunmap(buf);
+	kfree(buf);
 	return count;
 }
 

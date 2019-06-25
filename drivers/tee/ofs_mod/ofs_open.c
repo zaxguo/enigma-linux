@@ -173,6 +173,7 @@ int ofs_open_handler(void *data) {
 	flag = req->flag;
 	fd = opened;
 	/* ofs_open does not work properly with kernel space open, fallback to this */
+	/* file = filp_open(req->filename, flag | O_SYNC, 0600); */
 	file = filp_open(req->filename, flag | O_SYNC, 0600);
 	set_ofs_file(file);
 	/* file = fget(fd); */

@@ -94,6 +94,10 @@ EXPORT_SYMBOL(img_pa);
 static DEFINE_IDR(loop_index_idr);
 static DEFINE_MUTEX(loop_index_mutex);
 
+
+DEFINE_MUTEX(ofs_mutex);
+EXPORT_SYMBOL(ofs_mutex);
+
 static int max_part;
 static int part_shift;
 
@@ -317,6 +321,8 @@ static int lo_write_bvec(struct file *file, struct bio_vec *bvec, loff_t *ppos)
 static int lo_write_simple(struct loop_device *lo, struct request *rq,
 		loff_t pos)
 {
+
+	/* mutex_lock(&ofs_lock); [> lwg: no reentry...<] */
 	struct bio_vec bvec;
 	struct req_iterator iter;
 	/* used by OFS */
@@ -368,6 +374,7 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 			break;
 		cond_resched();
 	}
+	/* mutex_unlock(&ofs_lock); */
 	return ret;
 }
 

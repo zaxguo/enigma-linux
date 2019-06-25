@@ -264,6 +264,8 @@ static void ofs_set_msg_flag(int req, unsigned long *flag) {
 		*flag = MSG_WAITALL;
 	} else if (req == OFS_MMAP) {
 		*flag = MSG_WAITALL;
+	} else if (req == OFS_READ) {
+		*flag = MSG_WAITALL;
 	} else {
 		*flag = MSG_DONTWAIT;
 	}
@@ -295,16 +297,19 @@ int ofs_fs_send(struct ofs_fs_request *req) {
 	/* tcp_client_send(conn_socket, fs_op, strlen(fs_op), MSG_DONTWAIT); */
 	tcp_client_send(conn_socket, fs_op, strlen(fs_op), flag);
 	kfree(fs_op);
+#if 1
 	/* always expecting to see the response from the cloud */
 	/* ret = tcp_client_receive(conn_socket, reply, MSG_DONTWAIT); */
-	ret = tcp_client_receive(conn_socket, reply, flag);
-	getnstimeofday(&end);
-	diff = timespec_sub(end, start);
-	if (ret) {
-		printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply);
-		printk("rtt = %lld s, %lld ns\n", diff.tv_sec, diff.tv_nsec);
-		kfree(reply);
+	if (req->request != OFS_WRITE) {
+		ret = tcp_client_receive(conn_socket, reply, flag);
+		getnstimeofday(&end);
+		diff = timespec_sub(end, start);
+		if (ret) {
+			printk("lwg:%s:%d:receiving bio from the cloud -- [%s]\n", __func__, __LINE__, reply);
+			kfree(reply);
+		}
 	}
+#endif
 }
 
 

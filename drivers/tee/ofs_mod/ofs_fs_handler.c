@@ -10,7 +10,11 @@
 #include <ofs/ofs_net.h>
 #include <linux/socket.h>
 #include "ofs_obfuscation.h"
+#include <linux/mutex.h>
+#include <linux/smp.h>
 
+
+extern struct mutex ofs_mutex;
 /* index corresponds to its opcode */
 static const char *ofs_syscalls[OFS_MAX_SYSCALLS] = {
 	"X",
@@ -46,6 +50,8 @@ static int ofs_fs_handler(void *data) {
 	struct ofs_fs_request *req;
 	struct timespec start,end,diff;
 	struct ofs_fs_request *saved = kmalloc(sizeof(*req), GFP_KERNEL);
+	printk("CPU[%d] %s....\n", get_cpu(), __func__);
+	/* mutex_lock(&ofs_mutex); */
 	/* struct ofs_fs_request *req = (struct ofs_fs_request *)data; */
 	/* pointer to data will be modified by subsequent fs calls */
 	getnstimeofday(&start);
@@ -124,6 +130,7 @@ static int ofs_fs_handler(void *data) {
 	getnstimeofday(&end);
 	diff = timespec_sub(end, start);
 	printk("req [%d] handling time = %ld s, %ld ns\n", request, diff.tv_sec, diff.tv_nsec);
+	/* mutex_unlock(&ofs_mutex); */
 	ofs_switch_resume(&ofs_res);
 	return 0;
 }
