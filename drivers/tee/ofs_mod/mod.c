@@ -2,6 +2,7 @@
  * 1: kick starts the TA in secure world
  * 2: handle the request issued by secure world */
 
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -121,8 +122,10 @@ static int fs_sanity_test(void *img) {
 static struct page *ofs_alloc_cma(int nr_pages) {
 	int allocated, i;
 	struct page *page;
+	ofs_printk("in atomic = %d\n", in_atomic());
 	for (i = 0; i < MAX_CMA_AREAS; i++) {
 		struct cma *cma = &cma_areas[i];
+		/* cma_alloc can sleep but it does not seem to affect the prototype */
 		page = cma_alloc(cma, nr_pages, 8);
 		if (page) {
 			printk("allocated mem at area %d\n", i);
@@ -150,7 +153,7 @@ static int ofs_copy_to_cma(struct file *f, struct page *page, int nr_pages) {
 	uint8_t *buf;
 	pos = i = 0;
 	pfn = page_to_pfn(page);
-	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	buf = kmalloc(PAGE_SIZE, GFP_ATOMIC);
 	if (!buf) {
 		return -ENOMEM;
 	}
@@ -182,7 +185,7 @@ static int init_fs_img(char *fs) {
 	long long img_size;
 	/* uint8_t buf[PAGE_SIZE]; */
 	int nr_pages, start_pfn;
-	struct file* f = filp_open(fs, O_RDWR, 0600);
+	struct file* f = filp_open((char *)fs, O_RDWR, 0600);
 	if (!f) {
 		printk("no file...\n");
 		return -1;
@@ -197,9 +200,8 @@ static int init_fs_img(char *fs) {
 	start_pfn = page_to_pfn(page);
 	ofs_copy_to_cma(f, page, nr_pages);
 	img_pa = start_pfn << PAGE_SHIFT;
-	printk("%s:%s loaded into CMA, starting pa = %llx...\n",
-			__func__,
-			fs,
+	ofs_printk("%s loaded into CMA, starting pa = %llx...\n",
+			(char *)fs,
 			img_pa);
 	/* sanity test */
 	struct page *tmp = pfn_to_page(start_pfn);
@@ -276,18 +278,18 @@ static int ofs_bench(void *data) {
 	struct timespec start, end, diff;
 	/* Init */
 	op = 0;
+	ofs_printk("Initiating benchmark, in_atomic = %d, preempt_conut = %d, hardirq = %ld, softirq = %d, irq = %d..\n", in_atomic(), preempt_count(), in_irq(), in_softirq(), in_interrupt());
 #if 1
 	ctx = ofs_tee_context;
-	if (!ctx) {
-		ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	if (PTR_ERR(ctx)) {
+		ctx = kzalloc(sizeof(*ctx), GFP_ATOMIC);
 		ctx->teedev = ofs_tee;
 		INIT_LIST_HEAD(&ctx->list_shm);
-		/* printk(KERN_ERR"lwg:%s:NO MEM\n", __func__); */
+		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);
 	}
 #endif
 	/* allocate shm */
 	ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED | TEE_SHM_DMA_BUF);
-	/* ofs_shm = tee_shm_alloc(ctx, 4096, TEE_SHM_MAPPED); */
 	if (IS_ERR(ofs_shm)) {
 		printk("XXX:shm allocation failure\n");
 		return PTR_ERR(ofs_shm);
@@ -454,8 +456,12 @@ static ssize_t ofs_proc_write(struct file *file, const char __user *buf, size_t 
 		return -EFAULT;
 	}
 	sscanf(ops, "%d\n", &op);
-	printk("lwg:%s:%d:op = %d\n", __func__, __LINE__, op);
+	printk("lwg:%s:%d:op = %d, in_atomic = %d\n", __func__, __LINE__, op, in_atomic());
 	switch (op) {
+		case 0:
+			ofs_printk("op = %d, in_atomic = %d\n", op, in_atomic());
+			/* init_fs_img("/home/linaro/ext2.img"); */
+			break;
 		case 1:
 			printk("lwg:%s:%d:kick start benchmark\n", __func__, __LINE__);
 			ofs_switch(&ofs_res);
@@ -532,13 +538,20 @@ static int init_ofs_procfs(void) {
 
 static void init_rw_buf(void) {
 	void *addr;
-	write_buf = alloc_page(GFP_KERNEL);
+	write_buf = alloc_page(GFP_ATOMIC);
 	addr = kmap_atomic(write_buf);
 	memset(addr, 0x63, PAGE_SIZE);
 	kunmap_atomic(addr);
 	ofs_printk("read/write buf initialized!\n");
 }
 
+static char *img = "/home/linaro/ext2.img";
+module_param(img, charp, 0000);
+MODULE_PARM_DESC(img, "The file system image to be loaded");
+
+static int dummy_kthread(void *data) {
+	ofs_printk("preempt count = %d\n", preempt_count());
+}
 
 static int __init ofs_init(void)
 {
@@ -554,14 +567,16 @@ static int __init ofs_init(void)
 	/* char img_name[] = "/home/linaro/pic.img"; */
 	/* char img_name[] = "/home/linaro/pic_4m.img"; */
 	/* char img_name[] = "/home/linaro/pic-480p.img"; */
+	ofs_printk("in_atomic = %d\n", in_atomic());
 
-	printk("lwg:%d:%s:init loading fs img %s\n", __LINE__, __func__, img_name);
+	ofs_printk("init... going to load img %s\n", img_name);
 
 	/* Init */
+	/* kthread_run(dummy_kthread, NULL, "dummyd"); */
 	init_ofs_procfs();
 	init_rw_buf();
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
-	if (!ctx) {
+	ctx = kzalloc(sizeof(*ctx), GFP_ATOMIC);
+	if (PTR_ERR(ctx)) {
 		printk(KERN_ERR"lwg:%s:NO MEM\n", __func__);
 	}
 	ctx->teedev = ofs_tee;
@@ -573,15 +588,15 @@ static int __init ofs_init(void)
 	if (IS_ERR(ofs_shm)) {
 		return PTR_ERR(ofs_shm);
 	}
-	printk("lwg:%s:shm allocated va @ %p\n", __func__, ofs_shm);
+	ofs_printk("shm allocated va @ %p\n", ofs_shm);
 	rc = tee_shm_get_pa(ofs_shm, 0, &shm_pa);
-	printk("lwg:%s:shm allocated pa @ %16llx\n", __func__, shm_pa);
+	ofs_printk("shm allocated pa @ %16llx\n", shm_pa);
 	if (!ofs_tee) {
 		printk(KERN_ERR"lwg:%s:cannot find tee class!\n",__func__);
 		return 1;
 	}
-	printk(KERN_INFO"lwg:%s:OFS init sucess:----------------------------------\n",__func__);
-	ofs_printk(KERN_INFO"lwg:%s:ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", __func__, virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
+	ofs_printk("OFS init sucess:----------------------------------\n");
+	ofs_printk("ofs_tee@PA[%08llx], ofs_tee@VA[%p], ofs_tee@VA[%p]\n", virt_to_phys(ofs_tee), ofs_tee, (void *)(&ofs_tee));
 	/* Profiling world switch */
 #if 0
 	int i;
@@ -600,8 +615,8 @@ static int __init ofs_init(void)
 //	/* lwg: try no networked */
 	/* ofs_network_client_init(); */
 	init_fs_img(img_name);
-	spin_lock_init(&ofs_msg_spinlock);
-	saved_msg = kmalloc(sizeof(struct ofs_msg), GFP_KERNEL);
+	/* spin_lock_init(&ofs_msg_spinlock); */
+	saved_msg = kmalloc(sizeof(struct ofs_msg), GFP_ATOMIC);
 	return 0;
 }
 

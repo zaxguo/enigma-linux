@@ -7,7 +7,7 @@
 // #define OFS_BENCH	1
 
 #ifndef OFS_BENCH
-#define ofs_printk(...) printk(__VA_ARGS__)
+#define ofs_printk(fmt, ...) printk("OFS:CPU[%d]:%s:%d " fmt, smp_processor_id(), __func__, __LINE__, ##__VA_ARGS__)
 #else
 #define ofs_printk(...) (void)0
 #endif

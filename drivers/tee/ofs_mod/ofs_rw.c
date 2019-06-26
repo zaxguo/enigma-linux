@@ -96,10 +96,12 @@ int ofs_read_handler(void *data) {
 }
 
 int ofs_write_handler(void *data) {
+#if 0
 	if (in_atomic()) {
 		WARN_ON(1);
 		return 0;
 	}
+#endif
 	int fd, count;
 	void *buf;
 	struct ofs_msg *msg;
