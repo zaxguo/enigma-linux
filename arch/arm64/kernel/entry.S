@@ -753,6 +753,11 @@ el0_svc_naked:					// compat entry point
 	b.hs	ni_sys
 	ldr	x16, [stbl, scno, lsl #3]	// address in the syscall table
 	blr	x16				// call sys_* routine
+	/* XXX:lwg: intercept in here --- too expensive?? */
+	// str	x0, [sp, #S_X0]			// save returned x0
+	// mov x0, tsk
+	// bl	enigma_entry
+	// ldr x0, [sp, #S_X0] // recover
 	b	ret_fast_syscall
 ni_sys:
 	mov	x0, sp

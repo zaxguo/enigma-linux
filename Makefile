@@ -1158,6 +1158,12 @@ headers_check: headers_install
 	$(Q)$(MAKE) $(hdr-inst)=include/uapi HDRCHECK=1
 	$(Q)$(MAKE) $(hdr-inst)=arch/$(hdr-arch)/include/uapi/asm $(hdr-dst) HDRCHECK=1
 
+# lwg: install kernel
+PHONY += kernel_install
+kernel_install:
+	scp arch/$(ARCH)/boot/Image.gz hikey:~/
+
+
 # ---------------------------------------------------------------------------
 # Kernel selftest
 

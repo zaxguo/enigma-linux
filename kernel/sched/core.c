@@ -2829,6 +2829,22 @@ static inline void balance_callback(struct rq *rq)
 
 #endif
 
+
+
+/* XXX:lwg:our enigma_etnry... called upon each syscall */
+/* so adding per syscall check will greatly slow down the system and stuck at journald booting ... */
+#if 0
+asmlinkage __visible void enigma_entry(struct thread_info *curr) {
+	struct task_struct *tsk = curr->task;
+	if (!strcmp(tsk->comm, "a.out")) {
+		printk("!!!\n");
+	} else {
+		printk("%s\n", tsk->comm);
+	}
+	return;
+}
+#endif
+
 /**
  * schedule_tail - first thing a freshly forked thread must call.
  * @prev: the thread we just switched away from.
