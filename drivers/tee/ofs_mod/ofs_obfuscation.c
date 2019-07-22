@@ -11,7 +11,7 @@
 
 #define LOWER	97
 #define UPPER	123
-#define CURR_OBFUS_LV	0
+#define CURR_OBFUS_LV	5
 #define MAX_OBFUS_LV	25
 #define MAX_OBFUS_OPS	6
 #define MIN(a,b)	(((a) < (b)) ? (a) : (b))
