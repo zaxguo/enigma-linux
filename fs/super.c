@@ -1177,7 +1177,7 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 
 	/* OFS mount, copy disk img to mem */
 	if (is_ofs) {
-		ofs_mount(s);
+		/* ofs_mount(s); */
 		/* this flag indicates init is done */
 		s->s_flags |= MS_OFS;
 	}

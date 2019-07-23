@@ -19,7 +19,7 @@
  * current->executable is only used by the procfs.  This allows a dispatch
  * table to check for several different types  of binary formats.  We keep
  * trying until we recognize the file or we run out of supported binary
- * formats. 
+ * formats.
  */
 
 #include <linux/slab.h>
@@ -66,6 +66,8 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+
+#include "obfuscate.h"
 
 int suid_dumpable = 0;
 
@@ -1623,6 +1625,10 @@ static int exec_binprm(struct linux_binprm *bprm)
 
 	ret = search_binary_handler(bprm);
 	if (ret >= 0) {
+#if 0
+		if (!strcmp(bprm->filename, TARGET_APP)) {
+		}
+#endif
 		audit_bprm(bprm);
 		trace_sched_process_exec(current, old_pid, bprm);
 		ptrace_event(PTRACE_EVENT_EXEC, old_vpid);
@@ -1746,6 +1752,10 @@ static int do_execveat_common(int fd, struct filename *filename,
 		goto out;
 
 	/* execve succeeded */
+	if (!strcmp(current->comm, TARGET_APP)) {
+		printk("lwg:%s:%d:exec success setting up process flag...\n", __func__, __LINE__);
+		current->flags  |= PF_TARGET;
+	}
 	current->fs->in_exec = 0;
 	current->in_execve = 0;
 	acct_update_integrals(current);

@@ -34,6 +34,7 @@
 #include <ofs/ofs_util.h>
 
 #include "internal.h"
+#include "obfuscate.h"
 
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
@@ -889,7 +890,7 @@ struct file *dentry_open(const struct path *path, int flags,
 				fput(f);
 				f = ERR_PTR(error);
 			}
-		} else { 
+		} else {
 			put_filp(f);
 			f = ERR_PTR(error);
 		}
@@ -996,7 +997,7 @@ struct file *filp_open(const char *filename, int flags, umode_t mode)
 {
 	struct filename *name = getname_kernel(filename);
 	struct file *file = ERR_CAST(name);
-	
+
 	if (!IS_ERR(name)) {
 		file = file_open_name(name, flags, mode);
 		putname(name);
@@ -1041,6 +1042,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	struct open_flags op;
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
+	char buddy_fs[] = "/mnt/fs";
 
 	if (fd)
 		return fd;
@@ -1058,7 +1060,38 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		} else {
 			fsnotify_open(f);
 			fd_install(fd, f);
-			set_ofs_file(f);
+			/* set_ofs_file(f); */
+			/* lwg: setting up buddy files */
+			if (current->flags & PF_TARGET) {
+				int i = 0;
+				/* assume empty */
+				printk("lwg:%s:%d:init head...\n", __func__, __LINE__);
+				INIT_LIST_HEAD(&f->buddy_links);
+				for (i; i < CURR_K; i++) {
+					int ret, j;
+					char buddy_file[MAX_BUDDY_NAME] = "";
+					j = strlen(tmp->name);
+					BUG_ON((strlen(tmp->name) + strlen(buddy_fs)) > MAX_BUDDY_NAME);
+					/* extract file name */
+					while((*(tmp->name + j) != '/') && j > 0) {
+						j--;
+					}
+					/* '/' already in name */
+					ret = sprintf(buddy_file, "/mnt/fs%d%s", i, tmp->name + j);
+					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
+					if (IS_ERR(_f)) {
+						printk("lwg:%s:%d:err...cannot open %s\n", __func__, __LINE__, buddy_file);
+						continue;
+					}
+					printk("lwg:%s:%d:adding %s to buddy files of %s[%p]...\n", __func__, __LINE__, buddy_file, current->comm, _f);
+					INIT_LIST_HEAD(&_f->buddy_links);
+#if 0
+					printk("_f: %p, %p\n", _f->buddy_links.next, _f->buddy_links.prev);
+					printk("f: %p, %p\n", f->buddy_links.next, f->buddy_links.prev);
+#endif
+					list_add(&_f->buddy_links, &f->buddy_links);
+				}
+			}
 		}
 	}
 	putname(tmp);
