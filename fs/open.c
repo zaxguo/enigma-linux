@@ -1039,11 +1039,17 @@ EXPORT_SYMBOL(filp_clone_open);
 
 
 static int enigma_iterate(const void *data, struct file *f, unsigned fd) {
+	struct list_head *p, *n;
 	/* stdin stdout stderr */
 	if (fd <= 2) {
 		return 0;
 	}
 	printk("lwg:%s:%d:we are iterating %s, fd = %d...\n", __func__, __LINE__, f->f_path.dentry->d_name.name, fd);
+	list_for_each_safe(p, n, &f->buddy_links) {
+		struct file *f;
+		f = list_entry(p, struct file, buddy_links);
+		printk("buddy [%s]...\n", f->f_path.dentry->d_name.name);
+	}
 	return 0;
 }
 
@@ -1052,13 +1058,27 @@ static int surplus_collect(struct task_struct *tsk) {
 
 	int count, n_groups;
 	struct files_struct *fs = get_files_struct(tsk);
+	struct list_head *p, *n;
 	/* ensure user_files + buddies = K * K */
 	n_groups = 0;
 	count = tsk->opened;
 	printk("we have %d files, buddies %d...\n", count, tsk->buddies);
-	if (count + tsk->buddies != CURR_K * CURR_K) {
+	if ((count % CURR_K) != 0) {
+		/* do nothing */
 		return 0;
 	}
+	printk("surplus_link empty? %d\n", list_empty(&current->surplus_buddies));
+	/* deconstruct the global list */
+	mutex_lock(&current->surplus_buddy_mtx);
+	list_for_each_safe(p, n, &current->surplus_buddies) {
+		struct file *f;
+		f = list_entry(p, struct file, surplus_links);
+		printk("f = %p, name = %s, next = %p, prev = %p\n", f, f->f_path.dentry->d_name.name, f->surplus_links.next, f->surplus_links.prev);
+		list_del(&f->surplus_links);
+	}
+	mutex_unlock(&current->surplus_buddy_mtx);
+	printk("surplus_link empty? %d\n", list_empty(&current->surplus_buddies));
+	/* INIT_LIST_HEAD(&current->surplus_buddies); */
 	n_groups += iterate_fd(fs, 0, enigma_iterate, NULL);
 	put_files_struct(fs);
 	return CURR_K;
@@ -1088,14 +1108,16 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		} else {
 			fsnotify_open(f);
 			fd_install(fd, f);
-			/* set_ofs_file(f); */
 			/* lwg: setting up buddy files */
 			if (current->flags & PF_TARGET) {
 				int i = 0;
 				/* assume empty */
-				printk("lwg:%s:%d:init head...\n", __func__, __LINE__);
 				current->opened++;
 				INIT_LIST_HEAD(&f->buddy_links);
+				/* INIT_LIST_HEAD(&f->surplus_links); */
+				mutex_lock(&current->surplus_buddy_mtx);
+				list_add(&f->surplus_links, &current->surplus_buddies);
+				mutex_unlock(&current->surplus_buddy_mtx);
 				for (i; i < CURR_K - 1; i++) {
 					int ret, j;
 					char buddy_file[MAX_BUDDY_NAME] = "";
@@ -1115,14 +1137,19 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 						printk("lwg:%s:%d:err...cannot open %s\n", __func__, __LINE__, buddy_file);
 						continue;
 					}
-					printk("lwg:%s:%d:adding %s to buddy files of %s[%p]...\n", __func__, __LINE__, buddy_file, current->comm, _f);
-					INIT_LIST_HEAD(&_f->buddy_links);
-					list_add(&_f->buddy_links, &f->buddy_links);
+					/* INIT_LIST_HEAD(&_f->buddy_links); */
+					/* INIT_LIST_HEAD(&_f->surplus_links); */
+					printk("lwg:%s:%d:adding %s to buddy files of %s [%p]-->[%p]...\n", __func__, __LINE__, buddy_file, current->comm, _f, f);
 					/* XXX: atomic? */
 					current->buddies++;
+					list_add(&_f->buddy_links, &f->buddy_links);
+					mutex_lock(&current->surplus_buddy_mtx);
+					list_add(&_f->surplus_links, &current->surplus_buddies);
+					mutex_unlock(&current->surplus_buddy_mtx);
 				}
 				/* surplus collection */
-				int ret = surplus_collect(current);
+				int ret = 0;
+				/* int ret = surplus_collect(current); */
 				/* forming into K groups */
 				if (ret == CURR_K)  {
 					printk("we collect %d groups..wait for the next round...\n", ret);
@@ -1194,6 +1221,7 @@ int filp_close(struct file *filp, fl_owner_t id)
 
 EXPORT_SYMBOL(filp_close);
 
+
 /*
  * Careful here! We test whether the file pointer is NULL before
  * releasing the fd. This ensures that one clone task can't release
@@ -1209,6 +1237,8 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 		     retval == -ERESTARTNOHAND ||
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
+
+
 
 	return retval;
 }

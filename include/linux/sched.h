@@ -1487,6 +1487,8 @@ struct task_struct {
 	unsigned int ptrace;
 	unsigned int buddies; /* how many buddy files we have created  */
 	unsigned int opened; /* how many user files we have created  */
+	struct list_head surplus_buddies;
+	struct mutex surplus_buddy_mtx;
 
 
 #ifdef CONFIG_SMP

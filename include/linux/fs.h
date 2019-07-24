@@ -920,6 +920,7 @@ struct file {
 
 	/* lwg: storing buddy files */
 	struct list_head buddy_links;
+	struct list_head surplus_links;
 } __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
 struct file_handle {

@@ -1751,11 +1751,13 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (retval < 0)
 		goto out;
 
-	/* execve succeeded */
+	/* lwg:execve succeeded, init */
 	if (!strcmp(current->comm, TARGET_APP)) {
 		printk("lwg:%s:%d:exec success setting up process flag...\n", __func__, __LINE__);
 		current->flags  |= PF_TARGET;
 		current->buddies = 0;
+		INIT_LIST_HEAD(&current->surplus_buddies);
+		mutex_init(&current->surplus_buddy_mtx);
 	}
 	current->fs->in_exec = 0;
 	current->in_execve = 0;

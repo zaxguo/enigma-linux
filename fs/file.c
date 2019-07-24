@@ -631,6 +631,21 @@ void fd_install(unsigned int fd, struct file *file)
 
 EXPORT_SYMBOL(fd_install);
 
+
+static void enigma_close(struct file *file) {
+	struct list_head *p, *n;
+	/* delete from the global buddy list */
+	printk("lwg:%s:%d:f = %p\n", __func__, __LINE__, file);
+	list_del(&file->surplus_links);
+	list_for_each_safe(p, n, &file->buddy_links) {
+		struct file *f;
+		f = list_entry(p, struct file, buddy_links);
+		list_del(&f->surplus_links);
+		list_del(&f->buddy_links);
+		printk("lwg:%s:%d:f = %p\n", __func__, __LINE__, f);
+		filp_close(f, NULL);
+	}
+}
 /*
  * The same warnings as for __alloc_fd()/__fd_install() apply here...
  */
@@ -646,6 +661,10 @@ int __close_fd(struct files_struct *files, unsigned fd)
 	file = fdt->fd[fd];
 	if (!file)
 		goto out_unlock;
+	if (current->flags & PF_TARGET) {
+		enigma_close(file);
+	}
+
 	rcu_assign_pointer(fdt->fd[fd], NULL);
 	__clear_close_on_exec(fd, fdt);
 	__put_unused_fd(files, fd);
