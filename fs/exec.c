@@ -1755,6 +1755,7 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (!strcmp(current->comm, TARGET_APP)) {
 		printk("lwg:%s:%d:exec success setting up process flag...\n", __func__, __LINE__);
 		current->flags  |= PF_TARGET;
+		current->buddies = 0;
 	}
 	current->fs->in_exec = 0;
 	current->in_execve = 0;

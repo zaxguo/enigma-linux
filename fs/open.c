@@ -1037,6 +1037,34 @@ struct file *filp_clone_open(struct file *oldfile)
 }
 EXPORT_SYMBOL(filp_clone_open);
 
+
+static int enigma_iterate(const void *data, struct file *f, unsigned fd) {
+	/* stdin stdout stderr */
+	if (fd <= 2) {
+		return 0;
+	}
+	printk("lwg:%s:%d:we are iterating %s, fd = %d...\n", __func__, __LINE__, f->f_path.dentry->d_name.name, fd);
+	return 0;
+}
+
+/* we hash the buddy file into K groups here */
+static int surplus_collect(struct task_struct *tsk) {
+
+	int count, n_groups;
+	struct files_struct *fs = get_files_struct(tsk);
+	/* ensure user_files + buddies = K * K */
+	n_groups = 0;
+	count = tsk->opened;
+	printk("we have %d files, buddies %d...\n", count, tsk->buddies);
+	if (count + tsk->buddies != CURR_K * CURR_K) {
+		return 0;
+	}
+	n_groups += iterate_fd(fs, 0, enigma_iterate, NULL);
+	put_files_struct(fs);
+	return CURR_K;
+
+}
+
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
@@ -1066,8 +1094,9 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				int i = 0;
 				/* assume empty */
 				printk("lwg:%s:%d:init head...\n", __func__, __LINE__);
+				current->opened++;
 				INIT_LIST_HEAD(&f->buddy_links);
-				for (i; i < CURR_K; i++) {
+				for (i; i < CURR_K - 1; i++) {
 					int ret, j;
 					char buddy_file[MAX_BUDDY_NAME] = "";
 					j = strlen(tmp->name);
@@ -1076,8 +1105,11 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					while((*(tmp->name + j) != '/') && j > 0) {
 						j--;
 					}
-					/* '/' already in name */
-					ret = sprintf(buddy_file, "/mnt/fs%d%s", i, tmp->name + j);
+					/* handling '/', rightshift by 1 */
+					if (j != 0) {
+						j++;
+					}
+					ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
 					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
 					if (IS_ERR(_f)) {
 						printk("lwg:%s:%d:err...cannot open %s\n", __func__, __LINE__, buddy_file);
@@ -1085,12 +1117,18 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					}
 					printk("lwg:%s:%d:adding %s to buddy files of %s[%p]...\n", __func__, __LINE__, buddy_file, current->comm, _f);
 					INIT_LIST_HEAD(&_f->buddy_links);
-#if 0
-					printk("_f: %p, %p\n", _f->buddy_links.next, _f->buddy_links.prev);
-					printk("f: %p, %p\n", f->buddy_links.next, f->buddy_links.prev);
-#endif
 					list_add(&_f->buddy_links, &f->buddy_links);
+					/* XXX: atomic? */
+					current->buddies++;
 				}
+				/* surplus collection */
+				int ret = surplus_collect(current);
+				/* forming into K groups */
+				if (ret == CURR_K)  {
+					printk("we collect %d groups..wait for the next round...\n", ret);
+					current->buddies = 0;
+				}
+
 			}
 		}
 	}

@@ -1485,6 +1485,9 @@ struct task_struct {
 	atomic_t usage;
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
+	unsigned int buddies; /* how many buddy files we have created  */
+	unsigned int opened; /* how many user files we have created  */
+
 
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
