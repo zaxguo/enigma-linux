@@ -1067,19 +1067,22 @@ static int surplus_collect(struct task_struct *tsk) {
 		/* do nothing */
 		return 0;
 	}
-	printk("surplus_link empty? %d\n", list_empty(&current->surplus_buddies));
+	count = 0;
 	/* deconstruct the global list */
 	mutex_lock(&current->surplus_buddy_mtx);
 	list_for_each_safe(p, n, &current->surplus_buddies) {
 		struct file *f;
 		f = list_entry(p, struct file, surplus_links);
 		printk("f = %p, name = %s, next = %p, prev = %p\n", f, f->f_path.dentry->d_name.name, f->surplus_links.next, f->surplus_links.prev);
+		count++;
+#if 0
 		list_del(&f->surplus_links);
+#endif
 	}
 	mutex_unlock(&current->surplus_buddy_mtx);
-	printk("surplus_link empty? %d\n", list_empty(&current->surplus_buddies));
+	printk("surplus_link empty: %d, count = %d\n", list_empty(&current->surplus_buddies), count);
 	/* INIT_LIST_HEAD(&current->surplus_buddies); */
-	n_groups += iterate_fd(fs, 0, enigma_iterate, NULL);
+	/* n_groups += iterate_fd(fs, 0, enigma_iterate, NULL); */
 	put_files_struct(fs);
 	return CURR_K;
 
@@ -1108,12 +1111,12 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		} else {
 			fsnotify_open(f);
 			fd_install(fd, f);
-			/* lwg: setting up buddy files */
-			if (current->flags & PF_TARGET) {
+			/* lwg: setting up buddy files, skipping stdin out err */
+			INIT_LIST_HEAD(&f->buddy_links);
+			if ((fd >= 3) && (current->flags & PF_TARGET)) {
 				int i = 0;
 				/* assume empty */
 				current->opened++;
-				INIT_LIST_HEAD(&f->buddy_links);
 				/* INIT_LIST_HEAD(&f->surplus_links); */
 				mutex_lock(&current->surplus_buddy_mtx);
 				list_add(&f->surplus_links, &current->surplus_buddies);
@@ -1148,8 +1151,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					mutex_unlock(&current->surplus_buddy_mtx);
 				}
 				/* surplus collection */
-				int ret = 0;
-				/* int ret = surplus_collect(current); */
+				int ret = surplus_collect(current);
 				/* forming into K groups */
 				if (ret == CURR_K)  {
 					printk("we collect %d groups..wait for the next round...\n", ret);

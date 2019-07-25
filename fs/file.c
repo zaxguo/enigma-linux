@@ -663,6 +663,7 @@ int __close_fd(struct files_struct *files, unsigned fd)
 		goto out_unlock;
 	if (current->flags & PF_TARGET) {
 		enigma_close(file);
+		current->opened--;
 	}
 
 	rcu_assign_pointer(fdt->fd[fd], NULL);

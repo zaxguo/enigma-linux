@@ -470,8 +470,11 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 		return -EBADF;
 	if (!(file->f_mode & FMODE_CAN_READ))
 		return -EINVAL;
+#if 0
+	/* lwg: check user-kernel addr range */
 	if (unlikely(!access_ok(VERIFY_WRITE, buf, count)))
 		return -EFAULT;
+#endif
 
 	ret = rw_verify_area(READ, file, pos, count);
 	if (!ret) {
@@ -554,8 +557,11 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 		return -EBADF;
 	if (!(file->f_mode & FMODE_CAN_WRITE))
 		return -EINVAL;
+#if 0
+	/* XXX */
 	if (unlikely(!access_ok(VERIFY_READ, buf, count)))
 		return -EFAULT;
+#endif
 
 	ret = rw_verify_area(WRITE, file, pos, count);
 	if (!ret) {
@@ -585,6 +591,29 @@ static inline void file_pos_write(struct file *file, loff_t pos)
 	file->f_pos = pos;
 }
 
+static int enigma_rw(struct file *f, size_t count, int rw) {
+	if (current->flags & PF_TARGET) {
+		struct list_head *p;
+		printk("lwg:%s:%d:f[%s] = %p, buddy_list = %d\n", __func__, __LINE__, f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
+		char *buf;
+		buf = kmalloc(count, GFP_KERNEL);
+		list_for_each(p, &f->buddy_links) {
+			ssize_t ret  = -EBADF;
+			struct file *tmp = list_entry(p, struct file, buddy_links);
+			loff_t pos = file_pos_read(tmp);
+			if (rw == 0)  {
+				ret = vfs_read(tmp, buf, count, &pos);
+			} else {
+				ret = vfs_write(tmp, buf, count, &pos);
+			}
+			if (ret >= 0)
+				file_pos_write(tmp, pos);
+			printk("[%p]:rw [%d] [%d] bytes...\n", tmp, rw, ret);
+		}
+	}
+	return 0;
+}
+
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
 	struct fd f = fdget_pos(fd);
@@ -596,6 +625,10 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
+		if (current->flags & PF_TARGET) {
+			printk("lwg:%s:%d:fd = %d\n", __func__, __LINE__, fd);
+		}
+		enigma_rw(f.file, count, 0);
 	} else {
 		printk("lwg:%s:%d:fd %d doesn't have file!\n", __func__, __LINE__, fd);
 	}
@@ -614,6 +647,12 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
+#if 0
+		if (current->flags & PF_TARGET) {
+			printk("lwg:%s:%d:writing to %d\n", __func__, __LINE__, fd);
+		}
+#endif
+		enigma_rw(f.file, count, 1);
 	}
 
 	return ret;
