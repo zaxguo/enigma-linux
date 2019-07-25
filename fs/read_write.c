@@ -599,13 +599,16 @@ static int enigma_rw(struct file *f, size_t count, int rw) {
 		char *buf;
 		buf = kmalloc(count, GFP_KERNEL);
 		list_for_each(p, &f->buddy_links) {
+			int i;
 			ssize_t ret  = -EBADF;
 			struct file *tmp = list_entry(p, struct file, buddy_links);
 			loff_t pos = file_pos_read(tmp);
-			if (rw == 0)  {
-				ret = vfs_read(tmp, buf, count, &pos);
-			} else {
-				ret = vfs_write(tmp, buf, count, &pos);
+			for(i = 0; i < CURR_K; i++) {
+				if (rw == 0)  {
+					ret = vfs_read(tmp, buf, count, &pos);
+				} else {
+					ret = vfs_write(tmp, buf, count, &pos);
+				}
 			}
 			if (ret >= 0)
 				file_pos_write(tmp, pos);
