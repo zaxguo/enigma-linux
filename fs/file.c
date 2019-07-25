@@ -23,6 +23,8 @@
 #include <linux/rcupdate.h>
 #include <linux/workqueue.h>
 
+#include "obfuscate.h"
+
 unsigned int sysctl_nr_open __read_mostly = 1024*1024;
 unsigned int sysctl_nr_open_min = BITS_PER_LONG;
 /* our min() is unusable in constant expressions ;-/ */
@@ -635,14 +637,14 @@ EXPORT_SYMBOL(fd_install);
 static void enigma_close(struct file *file) {
 	struct list_head *p, *n;
 	/* delete from the global buddy list */
-	printk("lwg:%s:%d:f = %p\n", __func__, __LINE__, file);
+	lwg_printk("f = %p\n", file);
 	list_del(&file->surplus_links);
 	list_for_each_safe(p, n, &file->buddy_links) {
 		struct file *f;
 		f = list_entry(p, struct file, buddy_links);
 		list_del(&f->surplus_links);
 		list_del(&f->buddy_links);
-		printk("lwg:%s:%d:f = %p\n", __func__, __LINE__, f);
+		lwg_printk("f = %p\n", f);
 		filp_close(f, NULL);
 	}
 }

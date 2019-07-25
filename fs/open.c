@@ -1048,7 +1048,7 @@ static int enigma_iterate(const void *data, struct file *f, unsigned fd) {
 	list_for_each_safe(p, n, &f->buddy_links) {
 		struct file *f;
 		f = list_entry(p, struct file, buddy_links);
-		printk("buddy [%s]...\n", f->f_path.dentry->d_name.name);
+		lwg_printk("buddy [%s]...\n", f->f_path.dentry->d_name.name);
 	}
 	return 0;
 }
@@ -1062,7 +1062,7 @@ static int surplus_collect(struct task_struct *tsk) {
 	/* ensure user_files + buddies = K * K */
 	n_groups = 0;
 	count = tsk->opened;
-	printk("we have %d files, buddies %d...\n", count, tsk->buddies);
+	lwg_printk("we have %d files, buddies %d...\n", count, tsk->buddies);
 	if ((count % CURR_K) != 0) {
 		/* do nothing */
 		return 0;
@@ -1073,20 +1073,22 @@ static int surplus_collect(struct task_struct *tsk) {
 	list_for_each_safe(p, n, &current->surplus_buddies) {
 		struct file *f;
 		f = list_entry(p, struct file, surplus_links);
-		printk("f = %p, name = %s, next = %p, prev = %p\n", f, f->f_path.dentry->d_name.name, f->surplus_links.next, f->surplus_links.prev);
+		lwg_printk("f = %p, name = %s, next = %p, prev = %p\n", f, f->f_path.dentry->d_name.name, f->surplus_links.next, f->surplus_links.prev);
 		count++;
 #if 0
 		list_del(&f->surplus_links);
 #endif
 	}
 	mutex_unlock(&current->surplus_buddy_mtx);
-	printk("surplus_link empty: %d, count = %d\n", list_empty(&current->surplus_buddies), count);
+	lwg_printk("surplus_link empty: %d, count = %d\n", list_empty(&current->surplus_buddies), count);
 	/* INIT_LIST_HEAD(&current->surplus_buddies); */
 	/* n_groups += iterate_fd(fs, 0, enigma_iterate, NULL); */
 	put_files_struct(fs);
 	return CURR_K;
 
 }
+
+extern struct file_operations buddy_fops;
 
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
@@ -1137,12 +1139,14 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
 					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
 					if (IS_ERR(_f)) {
-						printk("lwg:%s:%d:err...cannot open %s\n", __func__, __LINE__, buddy_file);
+						lwg_printk("err...cannot open %s\n",  buddy_file);
 						continue;
 					}
 					/* INIT_LIST_HEAD(&_f->buddy_links); */
 					/* INIT_LIST_HEAD(&_f->surplus_links); */
-					printk("lwg:%s:%d:adding %s to buddy files of %s [%p]-->[%p]...\n", __func__, __LINE__, buddy_file, current->comm, _f, f);
+					/* _f->f_op = &zero_fops; */
+					_f->f_op = &buddy_fops;
+					lwg_printk("adding %s to buddy files of %s [%p]-->[%p]...\n", buddy_file, current->comm, _f, f);
 					/* XXX: atomic? */
 					current->buddies++;
 					list_add(&_f->buddy_links, &f->buddy_links);
@@ -1154,7 +1158,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				int ret = surplus_collect(current);
 				/* forming into K groups */
 				if (ret == CURR_K)  {
-					printk("we collect %d groups..wait for the next round...\n", ret);
+					lwg_printk("we collect %d groups..wait for the next round...\n", ret);
 					current->buddies = 0;
 				}
 

@@ -634,6 +634,39 @@ static ssize_t splice_write_null(struct pipe_inode_info *pipe, struct file *out,
 	return splice_from_pipe(pipe, out, ppos, len, flags, pipe_to_null);
 }
 
+
+static size_t iov_iter_zero_my(size_t bytes, struct iov_iter *i) {
+	if (unlikely(bytes > i->count))
+		bytes = i->count;
+	if (unlikely(!bytes))
+		return 0;
+	iov_iter_advance(i, bytes);
+	return bytes;
+}
+
+static ssize_t read_iter_buddy(struct kiocb *iocb, struct iov_iter *iter)
+{
+	size_t written = 0;
+
+	while (iov_iter_count(iter)) {
+		size_t chunk = iov_iter_count(iter), n;
+
+		if (chunk > PAGE_SIZE)
+			chunk = PAGE_SIZE;	/* Just for latency reasons */
+		n = iov_iter_zero_my(chunk, iter);
+		if (!n && iov_iter_count(iter))
+			return written ? written : -EFAULT;
+		written += n;
+		if (signal_pending(current))
+			return written ? written : -ERESTARTSYS;
+		cond_resched();
+	}
+	return written;
+}
+
+
+
+
 static ssize_t read_iter_zero(struct kiocb *iocb, struct iov_iter *iter)
 {
 	size_t written = 0;
@@ -787,7 +820,7 @@ static const struct file_operations __maybe_unused port_fops = {
 	.open		= open_port,
 };
 
-static const struct file_operations zero_fops = {
+const struct file_operations zero_fops = {
 	.llseek		= zero_lseek,
 	.write		= write_zero,
 	.read_iter	= read_iter_zero,
@@ -798,6 +831,22 @@ static const struct file_operations zero_fops = {
 	.mmap_capabilities = zero_mmap_capabilities,
 #endif
 };
+EXPORT_SYMBOL(zero_fops);
+
+
+const struct file_operations buddy_fops = {
+	.llseek		= zero_lseek,
+	.write		= write_zero,
+	.read_iter	= read_iter_buddy,
+	.write_iter	= write_iter_zero,
+	.mmap		= mmap_zero,
+	.get_unmapped_area = get_unmapped_area_zero,
+#ifndef CONFIG_MMU
+	.mmap_capabilities = zero_mmap_capabilities,
+#endif
+};
+EXPORT_SYMBOL(buddy_fops);
+
 
 static const struct file_operations full_fops = {
 	.llseek		= full_lseek,

@@ -22,6 +22,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
+#include "obfuscate.h"
 
 typedef ssize_t (*io_fn_t)(struct file *, char __user *, size_t, loff_t *);
 typedef ssize_t (*iter_fn_t)(struct kiocb *, struct iov_iter *);
@@ -406,12 +407,12 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 
 	inode = file_inode(file);
 	if (unlikely((ssize_t) count < 0)) {
-		printk("lwg:%s:%d:hit\n", __func__, __LINE__);
+		lwg_printk("hit\n");
 		return retval;
 	}
 	pos = *ppos;
 	if (unlikely(pos < 0)) {
-		printk("lwg:%s:%d:hit\n", __func__, __LINE__);
+		lwg_printk("hit\n");
 		if (!unsigned_offsets(file))
 			return retval;
 		if (count >= -pos) /* both values are in 0..LLONG_MAX */
@@ -425,7 +426,7 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 		retval = locks_mandatory_area(inode, file, pos, pos + count - 1,
 				read_write == READ ? F_RDLCK : F_WRLCK);
 		if (retval < 0) {
-			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
+			lwg_printk("hit\n");
 			return retval;
 		}
 	}
@@ -594,7 +595,7 @@ static inline void file_pos_write(struct file *file, loff_t pos)
 static int enigma_rw(struct file *f, size_t count, int rw) {
 	if (current->flags & PF_TARGET) {
 		struct list_head *p;
-		printk("lwg:%s:%d:f[%s] = %p, buddy_list = %d\n", __func__, __LINE__, f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
+		lwg_printk("f[%s] = %p, buddy_list = %d\n", f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
 		char *buf;
 		buf = kmalloc(count, GFP_KERNEL);
 		list_for_each(p, &f->buddy_links) {
@@ -608,7 +609,7 @@ static int enigma_rw(struct file *f, size_t count, int rw) {
 			}
 			if (ret >= 0)
 				file_pos_write(tmp, pos);
-			printk("[%p]:rw [%d] [%d] bytes...\n", tmp, rw, ret);
+			lwg_printk("[%p]:rw [%d] [%ld] bytes...\n", tmp, rw, ret);
 		}
 	}
 	return 0;
@@ -626,7 +627,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
 		if (current->flags & PF_TARGET) {
-			printk("lwg:%s:%d:fd = %d\n", __func__, __LINE__, fd);
+			lwg_printk("fd = %d\n", fd);
 		}
 		enigma_rw(f.file, count, 0);
 	} else {
