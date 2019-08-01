@@ -596,6 +596,7 @@ static char *enigma_buf;
 static size_t enigma_buf_sz;
 extern struct file_operations buddy_fops;
 
+/* this is supppsed to work only on zero_fops */
 static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *pos, int rw) {
 	int i;
 	ssize_t ret = -EBADF;
@@ -606,7 +607,7 @@ static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *po
 			ret = vfs_write(tmp, buf, count, pos);
 		}
 		if (ret != count) {
-			printk("%s:%d:count = %ld, ret = %ld...\n", __func__, __LINE__, ret, count);
+			printk("%s:%d:pos = %lld, count = %ld, ret = %ld, rw = %d...\n", __func__, __LINE__, *pos, count, ret, rw);
 		}
 	}
 	return ret;
@@ -617,28 +618,39 @@ static int enigma_rw(struct file *f, size_t count, int rw) {
 	if (current->flags & PF_TARGET) {
 		struct list_head *p;
 		char *buf;
-		struct file_operations	*saved = f->f_op;
 		loff_t pos;
-		lwg_printk("f[%s] = %p, buddy_list = %d\n", f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
-		if (!enigma_buf) {
-			if (count > enigma_buf_sz) {
-				enigma_buf_sz = count;
+		ssize_t _ret = -EBADF;
+		struct file_operations	*saved = f->f_op;
+		lwg_printk("f[%s] = %p, buddy_list_empty = %d\n", f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
+		/* world switch */
+		enigma_switch();
+
+		if (count > enigma_buf_sz) {
+			enigma_buf_sz = count;
+			if (enigma_buf) {
+				kfree(enigma_buf);
 			}
 			enigma_buf = kmalloc(enigma_buf_sz, GFP_KERNEL);
 		}
 		buf = enigma_buf;
 
-		/* TODO: need to be applied to real fs */
+		/* applied to real fs */
 		f->f_op =  &buddy_fops;
 		pos = file_pos_read(f);
-		rw_k(f, buf, count, &pos, rw);
+		_ret = rw_k(f, buf, count, &pos, rw);
+		if (_ret != count) {
+			printk("lwg:%s:%d:ret = %ld, count = %ld\n", __func__, __LINE__, _ret, count);
+		}
 		/* apply to buddy files */
 		list_for_each(p, &f->buddy_links) {
 			int i;
 			ssize_t ret  = -EBADF;
 			struct file *tmp = list_entry(p, struct file, buddy_links);
 			pos = file_pos_read(tmp);
-			rw_k(tmp, buf, count, &pos, rw);
+			ret = rw_k(tmp, buf, count, &pos, rw);
+			if (ret != count) {
+				printk("lwg:%s:%d:ret = %ld, count = %ld, fops = %pF\n", __func__, __LINE__, ret, count, tmp->f_op);
+			}
 			if (ret >= 0)
 				file_pos_write(tmp, pos);
 			lwg_printk("[%p]:rw [%d] [%ld] bytes...\n", tmp, rw, ret);

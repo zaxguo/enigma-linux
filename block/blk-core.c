@@ -39,6 +39,8 @@
 
 #include "blk.h"
 #include "blk-mq.h"
+/* dirty */
+#include "../fs/obfuscate.h"
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_remap);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_remap);
@@ -2071,6 +2073,7 @@ blk_qc_t submit_bio(struct bio *bio)
 	 * go through the normal accounting stuff before submission.
 	 */
 	if (bio_has_data(bio)) {
+		struct task_struct *tsk;
 		unsigned int count;
 
 		if (unlikely(bio_op(bio) == REQ_OP_WRITE_SAME))
@@ -2084,6 +2087,16 @@ blk_qc_t submit_bio(struct bio *bio)
 			task_io_account_read(bio->bi_iter.bi_size);
 			count_vm_events(PGPGIN, count);
 		}
+
+		get_task_struct(current);
+		tsk = current;
+		/* target app is submitting BIO */
+		if (tsk->flags & PF_TARGET) {
+			int i;
+			for (i = 0; i < CURR_K; i++)
+				enigma_switch();
+		}
+		put_task_struct(current);
 
 		if (unlikely(block_dump)) {
 			char b[BDEVNAME_SIZE];

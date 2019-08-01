@@ -1090,6 +1090,7 @@ static int surplus_collect(struct task_struct *tsk) {
 
 extern struct file_operations buddy_fops;
 
+
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
@@ -1116,6 +1117,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 			/* lwg: setting up buddy files, skipping stdin out err */
 			INIT_LIST_HEAD(&f->buddy_links);
 			if ((fd >= 3) && (current->flags & PF_TARGET)) {
+				enigma_switch();
 				int i = 0;
 				/* assume empty */
 				current->opened++;
@@ -1139,13 +1141,13 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
 					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
 					if (IS_ERR(_f)) {
-						lwg_printk("err...cannot open %s\n",  buddy_file);
+						printk("err...cannot open %s\n",  buddy_file);
 						continue;
 					}
-					/* INIT_LIST_HEAD(&_f->buddy_links); */
-					/* INIT_LIST_HEAD(&_f->surplus_links); */
-					/* _f->f_op = &zero_fops; */
-					_f->f_op = &buddy_fops;
+					/* means we will drop these block requests otherwise do real IO ... */
+					if (current->flags & PF_REAL) {
+						_f->f_op = &buddy_fops;
+					}
 					lwg_printk("adding %s to buddy files of %s [%p]-->[%p]...\n", buddy_file, current->comm, _f, f);
 					/* XXX: atomic? */
 					current->buddies++;
@@ -1155,7 +1157,8 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					mutex_unlock(&current->surplus_buddy_mtx);
 				}
 				/* surplus collection */
-				int ret = surplus_collect(current);
+				int ret = 0;
+				/* int ret = surplus_collect(current); */
 				/* forming into K groups */
 				if (ret == CURR_K)  {
 					lwg_printk("we collect %d groups..wait for the next round...\n", ret);

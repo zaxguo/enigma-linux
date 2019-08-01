@@ -638,11 +638,11 @@ static void enigma_close(struct file *file) {
 	struct list_head *p, *n;
 	/* delete from the global buddy list */
 	lwg_printk("f = %p\n", file);
-	list_del(&file->surplus_links);
+	/* list_del(&file->surplus_links); */
 	list_for_each_safe(p, n, &file->buddy_links) {
 		struct file *f;
 		f = list_entry(p, struct file, buddy_links);
-		list_del(&f->surplus_links);
+		/* list_del(&f->surplus_links); */
 		list_del(&f->buddy_links);
 		lwg_printk("f = %p\n", f);
 		filp_close(f, NULL);

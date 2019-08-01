@@ -71,6 +71,13 @@
 
 int suid_dumpable = 0;
 
+struct arm_smccc_res enigma_res = {
+	.a0 = 0,
+	.a1 = 0,
+	.a2 = 0,
+	.a3 = 0,
+};
+
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
@@ -1755,10 +1762,21 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (!strcmp(current->comm, TARGET_APP)) {
 		printk("lwg:%s:%d:exec success setting up process flag...\n", __func__, __LINE__);
 		current->flags  |= PF_TARGET;
+		current->flags  |= PF_REAL;
+		current->buddies = 0;
+		INIT_LIST_HEAD(&current->surplus_buddies);
+		mutex_init(&current->surplus_buddy_mtx);
+	} else if (!strcmp(current->comm, ALT_APP)) { /* alternative design */
+		printk("lwg:%s:%d:exec success setting up flag for alt design...\n", __func__, __LINE__);
+		current->flags  |= PF_TARGET;
 		current->buddies = 0;
 		INIT_LIST_HEAD(&current->surplus_buddies);
 		mutex_init(&current->surplus_buddy_mtx);
 	}
+
+
+
+
 	current->fs->in_exec = 0;
 	current->in_execve = 0;
 	acct_update_integrals(current);

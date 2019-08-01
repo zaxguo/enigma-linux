@@ -445,7 +445,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	ctx = ofs_tee_context;
 
 	/* debugging */
-	/* is_init = 0; */
+	is_init = 0;
 
 	if (is_init) {
 		/* is_init = sb->s_flags & MS_OFS; */
@@ -490,8 +490,10 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		/* printk("lwg:%s:%d:read blk [%llx], len = [%d]\n", __func__, __LINE__, _blocknr, bvec.bv_len); */
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
 ofs_read_done:
-		if (len < 0)
+		if (len < 0) {
+			printk("lwg:%s:%d:len = %ld\n", __func__, __LINE__, len);
 			return len;
+		}
 		flush_dcache_page(bvec.bv_page);
 
 		/* uint32_t checksum; */

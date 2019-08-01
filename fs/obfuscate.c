@@ -4,9 +4,12 @@
 #include <linux/sched.h>
 
 
-#define CURR_K		10
+/* #define CURR_K		10 */
 
 /* the targeted app */
 struct task_struct *target;
+
+
+
 
 

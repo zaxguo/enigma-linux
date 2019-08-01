@@ -91,6 +91,8 @@ static void show_type(struct seq_file *m, struct super_block *sb)
 	}
 }
 
+int enigma_k = 0;
+
 static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
 {
 	struct proc_mounts *p = m->private;
@@ -99,6 +101,7 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
 	struct super_block *sb = mnt_path.dentry->d_sb;
 	int err;
 
+	printk("lwg:curr enigma K = %d\n", enigma_k);
 	if (sb->s_op->show_devname) {
 		err = sb->s_op->show_devname(m, mnt_path.dentry);
 		if (err)
@@ -232,6 +235,7 @@ out:
 	return err;
 }
 
+
 static int mounts_open_common(struct inode *inode, struct file *file,
 			      int (*show)(struct seq_file *, struct vfsmount *))
 {
@@ -312,9 +316,23 @@ static int mountstats_open(struct inode *inode, struct file *file)
 	return mounts_open_common(inode, file, show_vfsstat);
 }
 
+
+static ssize_t mounts_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+	int k= 0;
+	char tmp[128];
+	if (copy_from_user(tmp, buf, count)) {
+		return -EFAULT;
+	}
+	sscanf(tmp, "%d\n", &k);
+	enigma_k = k;
+	printk("lwg:Adjusting K to %d...\n", enigma_k);
+	return count;
+}
+
 const struct file_operations proc_mounts_operations = {
 	.open		= mounts_open,
 	.read		= seq_read,
+	.write		= mounts_write, /* lwg: XXX used to adjust K */
 	.llseek		= seq_lseek,
 	.release	= mounts_release,
 	.poll		= mounts_poll,
