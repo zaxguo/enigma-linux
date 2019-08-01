@@ -2704,6 +2704,9 @@ generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 
 	data = *from;
 	written = mapping->a_ops->direct_IO(iocb, &data);
+	if (written < 0) {
+		printk("lwg:%s:%d:ret = %ld, dio func = %pF\n", __func__, __LINE__, written, mapping->a_ops->direct_IO);
+	}
 
 	/*
 	 * Finally, try again to invalidate clean pages which might have been
@@ -2905,8 +2908,10 @@ ssize_t __generic_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 		 * not succeed (even if it did, DAX does not handle dirty
 		 * page-cache pages correctly).
 		 */
-		if (written < 0 || !iov_iter_count(from) || IS_DAX(inode))
+		if (written < 0 || !iov_iter_count(from) || IS_DAX(inode)) {
+			/* printk("lwg:%s:%d:cannot write file %s\n", __func__, __LINE__, file->f_path.dentry->d_name.name); */
 			goto out;
+		}
 
 		status = generic_perform_write(file, from, pos = iocb->ki_pos);
 		/*

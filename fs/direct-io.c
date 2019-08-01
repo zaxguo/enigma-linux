@@ -164,6 +164,11 @@ static inline int dio_refill_pages(struct dio *dio, struct dio_submit *sdio)
 	ret = iov_iter_get_pages(sdio->iter, dio->pages, LONG_MAX, DIO_PAGES,
 				&sdio->from);
 
+	if (ret == -EFAULT) {
+		struct iov_iter *i = sdio->iter;
+		printk("lwg:%s:%d:hit....type = %d, count = %ld\n", __func__, __LINE__, i->type, i->count);
+	}
+
 	if (ret < 0 && sdio->blocks_available && (dio->op == REQ_OP_WRITE)) {
 		struct page *page = ZERO_PAGE(0);
 		/*
@@ -190,7 +195,7 @@ static inline int dio_refill_pages(struct dio *dio, struct dio_submit *sdio)
 		sdio->to = ((ret - 1) & (PAGE_SIZE - 1)) + 1;
 		return 0;
 	}
-	return ret;	
+	return ret;
 }
 
 /*
@@ -206,8 +211,9 @@ static inline struct page *dio_get_page(struct dio *dio,
 		int ret;
 
 		ret = dio_refill_pages(dio, sdio);
-		if (ret)
+		if (ret) {
 			return ERR_PTR(ret);
+		}
 		BUG_ON(dio_pages_present(sdio) == 0);
 	}
 	return dio->pages[sdio->head];
@@ -297,7 +303,7 @@ static void dio_aio_complete_work(struct work_struct *work)
 static int dio_bio_complete(struct dio *dio, struct bio *bio);
 
 /*
- * Asynchronous IO callback. 
+ * Asynchronous IO callback.
  */
 static void dio_bio_end_aio(struct bio *bio)
 {
@@ -711,7 +717,7 @@ static inline int dio_bio_add_page(struct dio_submit *sdio)
 	}
 	return ret;
 }
-		
+
 /*
  * Put cur_page under IO.  The section of cur_page which is described by
  * cur_page_offset,cur_page_len is put into a BIO.  The section of cur_page
@@ -773,7 +779,7 @@ out:
  * An autonomous function to put a chunk of a page under deferred IO.
  *
  * The caller doesn't actually know (or care) whether this piece of page is in
- * a BIO, or is under IO or whatever.  We just take care of all possible 
+ * a BIO, or is under IO or whatever.  We just take care of all possible
  * situations here.  The separation between the logic of do_direct_IO() and
  * that of submit_page_section() is important for clarity.  Please don't break.
  *
@@ -891,7 +897,7 @@ static inline void dio_zero_block(struct dio *dio, struct dio_submit *sdio,
 	 * We need to zero out part of an fs block.  It is either at the
 	 * beginning or the end of the fs block.
 	 */
-	if (end) 
+	if (end)
 		this_chunk_blocks = dio_blocks_per_fs_block - this_chunk_blocks;
 
 	this_chunk_bytes = this_chunk_blocks << sdio->blkbits;
@@ -933,6 +939,7 @@ static int do_direct_IO(struct dio *dio, struct dio_submit *sdio,
 		page = dio_get_page(dio, sdio);
 		if (IS_ERR(page)) {
 			ret = PTR_ERR(page);
+			printk("lwg:%s:%d:ret = %d hit...\n", __func__, __LINE__, ret);
 			goto out;
 		}
 		from = sdio->head ? 0 : sdio->from;
@@ -953,6 +960,7 @@ static int do_direct_IO(struct dio *dio, struct dio_submit *sdio,
 
 				ret = get_more_blocks(dio, sdio, map_bh);
 				if (ret) {
+					printk("lwg:%s:%d:ret = %d hit...\n", __func__, __LINE__, ret);
 					put_page(page);
 					goto out;
 				}
@@ -1008,6 +1016,7 @@ do_holes:
 						i_size_aligned >> blkbits) {
 					/* We hit eof */
 					put_page(page);
+					printk("lwg:%s:%d:ret = %d hit...\n", __func__, __LINE__, ret);
 					goto out;
 				}
 				zero_user(page, from, 1 << blkbits);
@@ -1047,6 +1056,7 @@ do_holes:
 						  sdio->next_block_for_io,
 						  map_bh);
 			if (ret) {
+				printk("lwg:%s:%d:ret = %d hit...\n", __func__, __LINE__, ret);
 				put_page(page);
 				goto out;
 			}
@@ -1271,6 +1281,12 @@ do_blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
 	blk_start_plug(&plug);
 
 	retval = do_direct_IO(dio, &sdio, &map_bh);
+#if 0
+	if (retval == -EFAULT) {
+		printk("lwg:%s:%d:retval = %ld!!!!!!\n", __func__, __LINE__, retval);
+	}
+#endif
+
 	if (retval)
 		dio_cleanup(dio, &sdio);
 

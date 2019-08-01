@@ -613,18 +613,18 @@ static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *po
 	return ret;
 }
 
-static int enigma_rw(struct file *f, size_t count, int rw) {
+static int enigma_rw(struct file *f, char __user *buf, size_t count, int rw) {
 
 	if (current->flags & PF_TARGET) {
 		struct list_head *p;
-		char *buf;
+		/* char *buf; */
 		loff_t pos;
 		ssize_t _ret = -EBADF;
 		struct file_operations	*saved = f->f_op;
 		lwg_printk("f[%s] = %p, buddy_list_empty = %d\n", f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
 		/* world switch */
 		enigma_switch();
-
+#if 0
 		if (count > enigma_buf_sz) {
 			enigma_buf_sz = count;
 			if (enigma_buf) {
@@ -633,11 +633,13 @@ static int enigma_rw(struct file *f, size_t count, int rw) {
 			enigma_buf = kmalloc(enigma_buf_sz, GFP_KERNEL);
 		}
 		buf = enigma_buf;
+#endif
 
 		/* applied to real fs */
 		f->f_op =  &buddy_fops;
 		pos = file_pos_read(f);
 		_ret = rw_k(f, buf, count, &pos, rw);
+		f->f_op =  saved;
 		if (_ret != count) {
 			printk("lwg:%s:%d:ret = %ld, count = %ld\n", __func__, __LINE__, _ret, count);
 		}
@@ -655,7 +657,6 @@ static int enigma_rw(struct file *f, size_t count, int rw) {
 				file_pos_write(tmp, pos);
 			lwg_printk("[%p]:rw [%d] [%ld] bytes...\n", tmp, rw, ret);
 		}
-		f->f_op =  saved;
 	}
 	return 0;
 }
@@ -668,7 +669,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	if (f.file) {
 		loff_t pos = file_pos_read(f.file);
 		ret = vfs_read(f.file, buf, count, &pos);
-		enigma_rw(f.file, count, 0);
+		enigma_rw(f.file, buf, count, 0);
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
@@ -687,7 +688,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 	if (f.file) {
 		loff_t pos = file_pos_read(f.file);
 		ret = vfs_write(f.file, buf, count, &pos);
-		enigma_rw(f.file, count, 1);
+		enigma_rw(f.file, buf, count, 1);
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);

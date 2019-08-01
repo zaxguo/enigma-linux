@@ -684,7 +684,7 @@ static void pipe_advance(struct iov_iter *i, size_t size)
 	struct pipe_buffer *buf;
 	int idx = i->idx;
 	size_t off = i->iov_offset, orig_sz;
-	
+
 	if (unlikely(i->count < size))
 		size = i->count;
 	orig_sz = size;
@@ -879,8 +879,10 @@ ssize_t iov_iter_get_pages(struct iov_iter *i,
 	if (!maxsize)
 		return 0;
 
-	if (unlikely(i->type & ITER_PIPE))
+	if (unlikely(i->type & ITER_PIPE)) {
+		printk("lwg:%s:%d:hit....\n", __func__, __LINE__);
 		return pipe_get_pages(i, pages, maxsize, maxpages, start);
+	}
 	iterate_all_kinds(i, maxsize, v, ({
 		unsigned long addr = (unsigned long)v.iov_base;
 		size_t len = v.iov_len + (*start = addr & (PAGE_SIZE - 1));
@@ -892,15 +894,19 @@ ssize_t iov_iter_get_pages(struct iov_iter *i,
 		addr &= ~(PAGE_SIZE - 1);
 		n = DIV_ROUND_UP(len, PAGE_SIZE);
 		res = get_user_pages_fast(addr, n, (i->type & WRITE) != WRITE, pages);
-		if (unlikely(res < 0))
+		/* printk("lwg:%s:%d:ret = %d, addr = %lx, n = %d, hit1....\n", __func__, __LINE__, res, addr, n); */
+		if (unlikely(res < 0)) {
 			return res;
+		}
 		return (res == n ? len : res * PAGE_SIZE) - *start;
 	0;}),({
 		/* can't be more than PAGE_SIZE */
 		*start = v.bv_offset;
 		get_page(*pages = v.bv_page);
+		/* printk("lwg:%s:%d:hit3....\n", __func__, __LINE__); */
 		return v.bv_len;
 	}),({
+		printk("lwg:%s:%d:type = %d, hit4....\n", __func__, __LINE__, i->type);
 		return -EFAULT;
 	})
 	)
@@ -1008,7 +1014,7 @@ size_t csum_and_copy_from_iter(void *addr, size_t bytes, __wsum *csum,
 	}
 	iterate_and_advance(i, bytes, v, ({
 		int err = 0;
-		next = csum_and_copy_from_user(v.iov_base, 
+		next = csum_and_copy_from_user(v.iov_base,
 					       (to += v.iov_len) - v.iov_len,
 					       v.iov_len, 0, &err);
 		if (!err) {
@@ -1051,7 +1057,7 @@ size_t csum_and_copy_to_iter(const void *addr, size_t bytes, __wsum *csum,
 	iterate_and_advance(i, bytes, v, ({
 		int err = 0;
 		next = csum_and_copy_to_user((from += v.iov_len) - v.iov_len,
-					     v.iov_base, 
+					     v.iov_base,
 					     v.iov_len, 0, &err);
 		if (!err) {
 			sum = csum_block_add(sum, next, off);

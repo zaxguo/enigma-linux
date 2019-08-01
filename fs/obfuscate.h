@@ -8,8 +8,8 @@
 #define MAX_BUDDY_NAME 128
 
 
-#define lwg_printk(fmt, ...)	printk("lwg:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
-// #define lwg_printk(fmt, ...) (void)0
+// #define lwg_printk(fmt, ...)	printk("lwg:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define lwg_printk(fmt, ...) (void)0
 
 extern struct arm_smccc_res enigma_res;
 extern int enigma_k;

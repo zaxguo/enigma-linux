@@ -1438,8 +1438,16 @@ int __get_user_pages_fast(unsigned long start, int nr_pages, int write,
 	end = start + len;
 
 	if (unlikely(!access_ok(write ? VERIFY_WRITE : VERIFY_READ,
-					start, len)))
-		return 0;
+					start, len))) {
+		/* here is the problem -- when we open a file in kernel space, its associated address space is also kernel, causing the
+		 * get page to fail */
+		printk("lwg:%s:%d:hit???? current is %s, limit = %lx\n", __func__, __LINE__, current->comm, current_thread_info()->addr_limit);
+		/* lwg: dirty... */
+		if (!(current->flags & PF_TARGET)) {
+			return 0;
+		}
+		printk("lwg:%s:%d:jump through it...\n", __func__, __LINE__);
+	}
 
 	/*
 	 * Disable interrupts.  We use the nested form as we can already have
@@ -1517,6 +1525,10 @@ int get_user_pages_fast(unsigned long start, int nr_pages, int write,
 			else
 				ret += nr;
 		}
+		if (ret == -EFAULT) {
+			printk("lwg:%s:%d:ret = %d, start = %lx\n", __func__, __LINE__, ret, start);
+		}
+
 	}
 
 	return ret;

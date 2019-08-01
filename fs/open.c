@@ -1144,6 +1144,8 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 						printk("err...cannot open %s\n",  buddy_file);
 						continue;
 					}
+					_f->f_mode = f->f_mode;
+					_f->f_flags = f->f_flags;
 					/* means we will drop these block requests otherwise do real IO ... */
 					if (current->flags & PF_REAL) {
 						_f->f_op = &buddy_fops;
