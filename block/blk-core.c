@@ -2093,8 +2093,12 @@ blk_qc_t submit_bio(struct bio *bio)
 		/* target app is submitting BIO */
 		if (tsk->flags & PF_TARGET) {
 			int i;
-			for (i = 0; i < CURR_K; i++)
-				enigma_switch();
+			if (tsk->flags & PF_REAL) {
+				for (i = 0; i < CURR_K; i++)
+					enigma_switch();
+			} else {
+					enigma_switch();
+			}
 		}
 		put_task_struct(current);
 

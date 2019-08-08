@@ -637,15 +637,21 @@ EXPORT_SYMBOL(fd_install);
 static void enigma_close(struct file *file) {
 	struct list_head *p, *n;
 	/* delete from the global buddy list */
-	lwg_printk("f = %p\n", file);
 	/* list_del(&file->surplus_links); */
-	list_for_each_safe(p, n, &file->buddy_links) {
-		struct file *f;
-		f = list_entry(p, struct file, buddy_links);
-		/* list_del(&f->surplus_links); */
-		list_del(&f->buddy_links);
-		lwg_printk("f = %p\n", f);
-		filp_close(f, NULL);
+	if ((!file->buddy_links.next) || (!file->buddy_links.prev)) {
+		printk("lwg:%s:%d:file %p links not initialized...!\n", __func__, __LINE__, file);
+		INIT_LIST_HEAD(&file->buddy_links);
+		return;
+	}
+	if (!list_empty(&file->buddy_links)) {
+		/* printk("lwg:%s:%d:f = %p, link = %p, prev = %p, next = %p\n", __func__, __LINE__, file, &file->buddy_links, file->buddy_links.prev, file->buddy_links.next); */
+		list_for_each_safe(p, n, &file->buddy_links) {
+			struct file *f;
+			f = list_entry(p, struct file, buddy_links);
+			/* list_del(&f->surplus_links); */
+			list_del(&f->buddy_links);
+			filp_close(f, NULL);
+		}
 	}
 }
 /*
@@ -663,6 +669,7 @@ int __close_fd(struct files_struct *files, unsigned fd)
 	file = fdt->fd[fd];
 	if (!file)
 		goto out_unlock;
+
 	if (current->flags & PF_TARGET) {
 		enigma_close(file);
 		current->opened--;

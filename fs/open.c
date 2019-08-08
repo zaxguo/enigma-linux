@@ -164,6 +164,52 @@ COMPAT_SYSCALL_DEFINE2(truncate, const char __user *, path, compat_off_t, length
 }
 #endif
 
+static long do_enigma_ftruncate(struct file *_f, loff_t length, int small) {
+
+	struct inode *inode;
+	struct dentry *dentry;
+	struct file *f;
+	int error;
+
+	error = -EINVAL;
+	if (length < 0)
+		goto out;
+	error = -EBADF;
+	f = _f;
+	if (!f)
+		goto out;
+
+	/* explicitly opened as large or we are on 64-bit box */
+	if (f->f_flags & O_LARGEFILE)
+		small = 0;
+
+	dentry = f->f_path.dentry;
+	inode = dentry->d_inode;
+	error = -EINVAL;
+	if (!S_ISREG(inode->i_mode) || !(f->f_mode & FMODE_WRITE))
+		goto out_putf;
+
+	error = -EINVAL;
+	/* Cannot ftruncate over 2^31 bytes without large file support */
+	if (small && length > MAX_NON_LFS)
+		goto out_putf;
+
+	error = -EPERM;
+	if (IS_APPEND(inode))
+		goto out_putf;
+
+	sb_start_write(inode->i_sb);
+	error = locks_verify_truncate(inode, f, length);
+	if (!error)
+		error = security_path_truncate(&f->f_path);
+	if (!error)
+		error = do_truncate(dentry, length, ATTR_MTIME|ATTR_CTIME, f);
+	sb_end_write(inode->i_sb);
+out_putf:
+out:
+	return error;
+}
+
 static long do_sys_ftruncate(unsigned int fd, loff_t length, int small)
 {
 	struct inode *inode;
@@ -178,6 +224,27 @@ static long do_sys_ftruncate(unsigned int fd, loff_t length, int small)
 	f = fdget(fd);
 	if (!f.file)
 		goto out;
+
+	/* first trunctae our trash */
+	if (current->flags & PF_TARGET) {
+		struct file *tmp = f.file;
+		if (!list_empty(&tmp->buddy_links)) {
+			int i = 0;
+			struct list_head *p, *n;
+			list_for_each_safe(p, n, &tmp->buddy_links) {
+				struct file *_f;
+				int err;
+				_f = list_entry(p, struct file, buddy_links);
+				err = do_enigma_ftruncate(_f, length, small);
+				if (err == 0) {
+					i++;
+				} else {
+					printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
+				}
+			}
+			printk("lwg:%s:%d:truncate %d buddy files..\n", __func__, __LINE__, i);
+		}
+	}
 
 	/* explicitly opened as large or we are on 64-bit box */
 	if (f.file->f_flags & O_LARGEFILE)
@@ -210,6 +277,7 @@ out_putf:
 out:
 	return error;
 }
+
 
 SYSCALL_DEFINE2(ftruncate, unsigned int, fd, unsigned long, length)
 {
@@ -1105,19 +1173,45 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
+
 	fd = get_unused_fd_flags(flags);
+
+	if (current->flags & PF_REAL) {
+		if (op.open_flag & O_RDWR) {
+			printk("lwg:%s:%d:DIO for %s...\n", __func__, __LINE__, tmp->name);
+			op.open_flag |= O_SYNC;
+		}
+	}
+
+
 	if (fd >= 0) {
+
 		struct file *f = do_filp_open(dfd, tmp, &op);
 		if (IS_ERR(f)) {
 			put_unused_fd(fd);
 			fd = PTR_ERR(f);
 		} else {
+			if (current->flags & PF_REAL) {
+				if (op.open_flag & O_RDWR) {
+					printk("lwg:%s:%d:setting our file %s...\n", __func__, __LINE__, tmp->name);
+					f->f_flags |= O_OURS;
+				}
+			}
 			fsnotify_open(f);
 			fd_install(fd, f);
 			/* lwg: setting up buddy files, skipping stdin out err */
 			INIT_LIST_HEAD(&f->buddy_links);
 			if ((fd >= 3) && (current->flags & PF_TARGET)) {
 				enigma_switch();
+				/* cannot handle directories yet */
+				if (flags &  O_DIRECTORY) {
+					goto out;
+				}
+				/* SHM, skip */
+				if (!strncmp(tmp->name, "/tmp/", 5)) {
+					printk("lwg:%s:%d:skipping shm...\n", __func__, __LINE__);
+					goto out;
+				}
 				int i = 0;
 				/* assume empty */
 				current->opened++;
@@ -1141,7 +1235,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
 					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
 					if (IS_ERR(_f)) {
-						printk("err...cannot open %s\n",  buddy_file);
+						printk("err...cannot open %s, name in real op is %s\n",  buddy_file, tmp->name);
 						continue;
 					}
 					_f->f_mode = f->f_mode;
@@ -1154,9 +1248,6 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					/* XXX: atomic? */
 					current->buddies++;
 					list_add(&_f->buddy_links, &f->buddy_links);
-					mutex_lock(&current->surplus_buddy_mtx);
-					list_add(&_f->surplus_links, &current->surplus_buddies);
-					mutex_unlock(&current->surplus_buddy_mtx);
 				}
 				/* surplus collection */
 				int ret = 0;
@@ -1170,6 +1261,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 			}
 		}
 	}
+out:
 	putname(tmp);
 
 

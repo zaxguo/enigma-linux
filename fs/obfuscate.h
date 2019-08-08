@@ -6,6 +6,7 @@
 #define TARGET_APP "a.out"
 #define ALT_APP "alt.out"
 #define MAX_BUDDY_NAME 128
+#define O_OURS		00000004
 
 
 // #define lwg_printk(fmt, ...)	printk("lwg:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
@@ -15,7 +16,7 @@ extern struct arm_smccc_res enigma_res;
 extern int enigma_k;
 
 static inline int get_enigma_k(void) {
-	return (enigma_k == 0) ? 5 : enigma_k;
+	return enigma_k;
 }
 
 static inline void enigma_switch(void) {

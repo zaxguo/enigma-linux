@@ -1154,8 +1154,12 @@ do_blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
 		if (bdev)
 			blkbits = blksize_bits(bdev_logical_block_size(bdev));
 		blocksize_mask = (1 << blkbits) - 1;
-		if (align & blocksize_mask)
+		if (align & blocksize_mask) {
+			printk("lwg:%s:%d:retval = %ld, offset = %llx, align = %lx, bsz_mask = %x!!!!!!\n", __func__, __LINE__, retval, offset, align, blocksize_mask);
+			/* dump_stack(); */
+			/* BUG_ON(1); */
 			goto out;
+		}
 	}
 
 	/* watch out for a 0 len io from a tricksy fs */
@@ -1184,6 +1188,7 @@ do_blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
 
 			retval = filemap_write_and_wait_range(mapping, offset,
 							      end - 1);
+			printk("lwg:%s:%d:retval = %ld!!!!!!\n", __func__, __LINE__, retval);
 			if (retval) {
 				inode_unlock(inode);
 				kmem_cache_free(dio_cache, dio);
@@ -1238,6 +1243,7 @@ do_blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
 			 * to release it here
 			 */
 			kmem_cache_free(dio_cache, dio);
+			printk("lwg:%s:%d:ret = %d hit...\n", __func__, __LINE__, retval);
 			goto out;
 		}
 	}
@@ -1281,8 +1287,8 @@ do_blockdev_direct_IO(struct kiocb *iocb, struct inode *inode,
 	blk_start_plug(&plug);
 
 	retval = do_direct_IO(dio, &sdio, &map_bh);
-#if 0
-	if (retval == -EFAULT) {
+#if 1
+	if (retval == -EINVAL) {
 		printk("lwg:%s:%d:retval = %ld!!!!!!\n", __func__, __LINE__, retval);
 	}
 #endif

@@ -1717,18 +1717,6 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	unsigned long offset;      /* offset into pagecache page */
 	unsigned int prev_offset;
 	int error = 0;
-	int is_ofs = 0;
-
-	if(is_ofs_file(filp)) {
-		is_ofs = 1;
-#if 0
-		printk("lwg:%s:%d:caught an OFS file, ino = %lu\n",
-				__func__,
-				__LINE__,
-				inode->i_ino);
-#endif
-	}
-
 
 
 	if (unlikely(*ppos >= inode->i_sb->s_maxbytes))
@@ -1756,12 +1744,6 @@ find_page:
 					ra, filp,
 					index, last_index - index);
 			page = find_get_page(mapping, index);
-#if 0
-			if (is_ofs_address_space(mapping)) {
-				printk("lwg:%s:%d:page NUll == %d\n", __func__, __LINE__, page == NULL);
-			}
-#endif
-
 
 			if (unlikely(page == NULL)) {
 				goto no_cached_page;
@@ -1800,6 +1782,13 @@ find_page:
 				goto page_not_up_to_date_locked;
 			unlock_page(page);
 		}
+		/* catch our file... all page cache miss */
+#if 0
+		if (filp->f_flags &= 0x00000004) {
+			goto readpage;
+		}
+#endif
+
 page_ok:
 		/*
 		 * i_size must be checked after we know the page is Uptodate.

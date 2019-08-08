@@ -41,6 +41,7 @@
 
 #include "internal.h"
 #include "mount.h"
+#include "obfuscate.h"
 
 /* [Feb-1997 T. Schoebel-Theuer]
  * Fundamental changes in the pathname lookup mechanisms (namei)
@@ -51,8 +52,8 @@
  * The new code replaces the old recursive symlink resolution with
  * an iterative one (in case of non-nested symlink chains).  It does
  * this with calls to <fs>_follow_link().
- * As a side effect, dir_namei(), _namei() and follow_link() are now 
- * replaced with a single function lookup_dentry() that can handle all 
+ * As a side effect, dir_namei(), _namei() and follow_link() are now
+ * replaced with a single function lookup_dentry() that can handle all
  * the special cases of the former code.
  *
  * With the new dcache, the pathname is stored at each inode, at least as
@@ -3815,7 +3816,7 @@ retry:
 	} else {
 		/* lwg: request from kern space worked */
 		dentry = kern_path_create(dfd, pathname, &path, lookup_flags);
-	}	
+	}
 
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
@@ -3999,14 +4000,11 @@ out:
 }
 EXPORT_SYMBOL(vfs_unlink);
 
-/*
- * Make sure that the actual truncation of the file will occur outside its
- * directory's i_mutex.  Truncate can take a long time if there is a lot of
- * writeout happening, and we don't want to prevent access to the directory
- * while waiting on the I/O.
- */
-static long do_unlinkat(int dfd, const char __user *pathname)
-{
+
+static long do_unlinkat(int dfd, const char __user *pathname);
+
+
+static long __enigma_do_unlinkat(int dfd, char *pathname) {
 	int error;
 	struct filename *name;
 	struct dentry *dentry;
@@ -4017,8 +4015,9 @@ static long do_unlinkat(int dfd, const char __user *pathname)
 	struct inode *delegated_inode = NULL;
 	unsigned int lookup_flags = 0;
 retry:
-	name = user_path_parent(dfd, pathname,
-				&path, &last, &type, lookup_flags);
+	name = filename_parentat(dfd, getname_kernel(pathname), lookup_flags & LOOKUP_REVAL,
+				 &path, &last, &type);
+
 	if (IS_ERR(name))
 		return PTR_ERR(name);
 
@@ -4076,7 +4075,116 @@ slashes:
 	else
 		error = -ENOTDIR;
 	goto exit2;
+
+
 }
+
+static int enigma_do_unlinkat(int dfd, struct filename *name) {
+	int len,ret,i;
+	char *kname;
+	struct filename *tmp= name;
+	char buddy_file[MAX_BUDDY_NAME] = "";
+	int j = strlen(tmp->name);
+	/* extract file name */
+	while((*(tmp->name + j) != '/') && j > 0) {
+		j--;
+	}
+	/* handling '/', rightshift by 1 */
+	if (j != 0) {
+		j++;
+	}
+	for (i = 0; i < CURR_K - 1; i++) {
+		ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
+		/* printk("lwg:%s:%d:preparing to remove %s...\n", __func__, __LINE__, buddy_file); */
+		__enigma_do_unlinkat(dfd, buddy_file);
+	}
+}
+
+/*
+ * Make sure that the actual truncation of the file will occur outside its
+ * directory's i_mutex.  Truncate can take a long time if there is a lot of
+ * writeout happening, and we don't want to prevent access to the directory
+ * while waiting on the I/O.
+ */
+static long do_unlinkat(int dfd, const char __user *pathname)
+{
+	int error;
+	struct filename *name;
+	struct dentry *dentry;
+	struct path path;
+	struct qstr last;
+	int type;
+	struct inode *inode = NULL;
+	struct inode *delegated_inode = NULL;
+	unsigned int lookup_flags = 0;
+
+retry:
+	name = user_path_parent(dfd, pathname,
+				&path, &last, &type, lookup_flags);
+	if (IS_ERR(name))
+		return PTR_ERR(name);
+
+	if (current->flags & PF_TARGET) {
+		enigma_do_unlinkat(dfd, name);
+	}
+
+	error = -EISDIR;
+	if (type != LAST_NORM)
+		goto exit1;
+
+	error = mnt_want_write(path.mnt);
+	if (error)
+		goto exit1;
+retry_deleg:
+	inode_lock_nested(path.dentry->d_inode, I_MUTEX_PARENT);
+	dentry = __lookup_hash(&last, path.dentry, lookup_flags);
+	error = PTR_ERR(dentry);
+	if (!IS_ERR(dentry)) {
+		/* Why not before? Because we want correct error value */
+		if (last.name[last.len])
+			goto slashes;
+		inode = dentry->d_inode;
+		if (d_is_negative(dentry))
+			goto slashes;
+		ihold(inode);
+		error = security_path_unlink(&path, dentry);
+		if (error)
+			goto exit2;
+		error = vfs_unlink(path.dentry->d_inode, dentry, &delegated_inode);
+exit2:
+		dput(dentry);
+	}
+	inode_unlock(path.dentry->d_inode);
+	if (inode)
+		iput(inode);	/* truncate the inode here */
+	inode = NULL;
+	if (delegated_inode) {
+		error = break_deleg_wait(&delegated_inode);
+		if (!error)
+			goto retry_deleg;
+	}
+	mnt_drop_write(path.mnt);
+exit1:
+	path_put(&path);
+	putname(name);
+	if (retry_estale(error, lookup_flags)) {
+		lookup_flags |= LOOKUP_REVAL;
+		inode = NULL;
+		goto retry;
+	}
+	return error;
+
+slashes:
+	if (d_is_negative(dentry))
+		error = -ENOENT;
+	else if (d_is_dir(dentry))
+		error = -EISDIR;
+	else
+		error = -ENOTDIR;
+	goto exit2;
+}
+
+
 
 SYSCALL_DEFINE3(unlinkat, int, dfd, const char __user *, pathname, int, flag)
 {

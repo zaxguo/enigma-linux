@@ -26,6 +26,7 @@
 
 typedef ssize_t (*io_fn_t)(struct file *, char __user *, size_t, loff_t *);
 typedef ssize_t (*iter_fn_t)(struct kiocb *, struct iov_iter *);
+extern struct file_operations buddy_fops;
 
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
@@ -303,6 +304,7 @@ loff_t vfs_llseek(struct file *file, loff_t offset, int whence)
 }
 EXPORT_SYMBOL(vfs_llseek);
 
+
 SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence)
 {
 	off_t retval;
@@ -317,6 +319,20 @@ SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence)
 		if (res != (loff_t)retval)
 			retval = -EOVERFLOW;	/* LFS: should only happen on 32 bit platforms */
 	}
+	/* dirty */
+	if (current->flags & PF_TARGET) {
+		if(!list_empty(&f.file->buddy_links)) {
+			struct list_head *p;
+			list_for_each(p, &f.file->buddy_links) {
+				off_t ret  = -EINVAL;
+				struct file *tmp = list_entry(p, struct file, buddy_links);
+				if (whence <= SEEK_MAX) {
+					ret = vfs_llseek(tmp, offset, whence);
+				}
+			}
+		}
+	}
+
 	fdput_pos(f);
 	return retval;
 }
@@ -434,12 +450,33 @@ int rw_verify_area(int read_write, struct file *file, const loff_t *ppos, size_t
 				read_write == READ ? MAY_READ : MAY_WRITE);
 }
 
+static int enigma_try_dio(loff_t *ppos, struct iov_iter *iter) {
+	int block_mask = 0x1ff;
+	unsigned long align = *ppos | iov_iter_alignment(iter);
+	return (align & block_mask);
+}
+
 static ssize_t new_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 {
 	struct iovec iov = { .iov_base = buf, .iov_len = len };
 	struct kiocb kiocb;
 	struct iov_iter iter;
 	ssize_t ret;
+
+#if 0
+	if (current->flags & PF_REAL) {
+		/* if (PAGE_ALIGNED(len) && (!list_empty(&filp->buddy_links))) { */
+		if (PAGE_ALIGNED(len) && (filp->f_op != &buddy_fops)) {
+			if ((*ppos & 0x1ff) == 0) {
+				printk("lwg:%s:%d:len = %llx, setting %s/%s to DIO\n", __func__, __LINE__, len, filp->f_path.dentry->d_parent->d_name.name, filp->f_path.dentry->d_name.name);
+				filp->f_flags |= O_DIRECT;
+				dump_stack();
+			} else {
+				filp->f_flags &= ~O_DIRECT;
+			}
+		}
+	}
+#endif
 
 	init_sync_kiocb(&kiocb, filp);
 	kiocb.ki_pos = *ppos;
@@ -500,6 +537,7 @@ static ssize_t new_sync_write(struct file *filp, const char __user *buf, size_t 
 	struct kiocb kiocb;
 	struct iov_iter iter;
 	ssize_t ret;
+
 
 	init_sync_kiocb(&kiocb, filp);
 	kiocb.ki_pos = *ppos;
@@ -594,7 +632,6 @@ static inline void file_pos_write(struct file *file, loff_t pos)
 
 static char *enigma_buf;
 static size_t enigma_buf_sz;
-extern struct file_operations buddy_fops;
 
 /* this is supppsed to work only on zero_fops */
 static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *pos, int rw) {
@@ -604,10 +641,14 @@ static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *po
 		if (rw == 0)  {
 			ret = vfs_read(tmp, buf, count, pos);
 		} else {
+			if (tmp->f_op != &buddy_fops) {
+				printk("%s:%d:trying to do real ops here for %s", __func__, __LINE__, tmp->f_path.dentry->d_name.name);
+				return count;
+			}
 			ret = vfs_write(tmp, buf, count, pos);
 		}
 		if (ret != count) {
-			printk("%s:%d:pos = %lld, count = %ld, ret = %ld, rw = %d...\n", __func__, __LINE__, *pos, count, ret, rw);
+			printk("%s:%d:pos = %lld, count = %ld, ret = %ld, rw = %d, cur_pos = %lld, name = %s/%s...\n", __func__, __LINE__, *pos, count, ret, rw, tmp->f_pos, tmp->f_path.dentry->d_parent->d_name.name, tmp->f_path.dentry->d_name.name);
 		}
 	}
 	return ret;
@@ -624,25 +665,11 @@ static int enigma_rw(struct file *f, char __user *buf, size_t count, int rw) {
 		lwg_printk("f[%s] = %p, buddy_list_empty = %d\n", f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
 		/* world switch */
 		enigma_switch();
-#if 0
-		if (count > enigma_buf_sz) {
-			enigma_buf_sz = count;
-			if (enigma_buf) {
-				kfree(enigma_buf);
-			}
-			enigma_buf = kmalloc(enigma_buf_sz, GFP_KERNEL);
-		}
-		buf = enigma_buf;
-#endif
-
 		/* applied to real fs */
 		f->f_op =  &buddy_fops;
 		pos = file_pos_read(f);
 		_ret = rw_k(f, buf, count, &pos, rw);
 		f->f_op =  saved;
-		if (_ret != count) {
-			printk("lwg:%s:%d:ret = %ld, count = %ld\n", __func__, __LINE__, _ret, count);
-		}
 		/* apply to buddy files */
 		list_for_each(p, &f->buddy_links) {
 			int i;
@@ -650,9 +677,6 @@ static int enigma_rw(struct file *f, char __user *buf, size_t count, int rw) {
 			struct file *tmp = list_entry(p, struct file, buddy_links);
 			pos = file_pos_read(tmp);
 			ret = rw_k(tmp, buf, count, &pos, rw);
-			if (ret != count) {
-				printk("lwg:%s:%d:ret = %ld, count = %ld, fops = %pF\n", __func__, __LINE__, ret, count, tmp->f_op);
-			}
 			if (ret >= 0)
 				file_pos_write(tmp, pos);
 			lwg_printk("[%p]:rw [%d] [%ld] bytes...\n", tmp, rw, ret);
@@ -709,8 +733,10 @@ SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf,
 	f = fdget(fd);
 	if (f.file) {
 		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PREAD)
+		if (f.file->f_mode & FMODE_PREAD) {
 			ret = vfs_read(f.file, buf, count, &pos);
+			enigma_rw(f.file, buf, count, 0);
+		}
 		fdput(f);
 	}
 
@@ -729,8 +755,10 @@ SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf,
 	f = fdget(fd);
 	if (f.file) {
 		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PWRITE)
+		if (f.file->f_mode & FMODE_PWRITE){
 			ret = vfs_write(f.file, buf, count, &pos);
+			enigma_rw(f.file, buf, count, 1);
+		}
 		fdput(f);
 	}
 
