@@ -2655,6 +2655,7 @@ EXPORT_SYMBOL(pagecache_write_end);
 ssize_t
 generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 {
+	struct timespec t_start, t_end;
 	struct file	*file = iocb->ki_filp;
 	struct address_space *mapping = file->f_mapping;
 	struct inode	*inode = mapping->host;
@@ -2663,6 +2664,9 @@ generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 	size_t		write_len;
 	pgoff_t		end;
 	struct iov_iter data;
+	if (current->flags & PF_REAL) {
+		getnstimeofday(&t_start);
+	}
 
 	write_len = iov_iter_count(from);
 	end = (pos + write_len - 1) >> PAGE_SHIFT;
@@ -2694,7 +2698,9 @@ generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 	data = *from;
 	written = mapping->a_ops->direct_IO(iocb, &data);
 	if (written < 0) {
-		printk("lwg:%s:%d:ret = %ld, dio func = %pF\n", __func__, __LINE__, written, mapping->a_ops->direct_IO);
+		if (current->flags & PF_REAL) {
+			printk("lwg:%s:%d:ret = %ld, dio func = %pF, file = %s/%s\n", __func__, __LINE__, written, mapping->a_ops->direct_IO, file->f_path.dentry->d_parent->d_name.name, file->f_path.dentry->d_name.name);
+		}
 	}
 
 	/*
@@ -2720,6 +2726,10 @@ generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 		iocb->ki_pos = pos;
 	}
 out:
+	if (current->flags & PF_REAL) {
+		getnstimeofday(&t_end);
+		printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, t_end.tv_nsec - t_start.tv_nsec);
+	}
 	return written;
 }
 EXPORT_SYMBOL(generic_file_direct_write);

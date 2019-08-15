@@ -80,6 +80,29 @@ int vfs_fstat(unsigned int fd, struct kstat *stat)
 	int error = -EBADF;
 
 	if (f.file) {
+
+		if (current->flags & PF_TARGET) {
+			struct file *tmp = f.file;
+			if ((tmp->buddy_links.next != NULL) && !list_empty(&tmp->buddy_links)) {
+				int i = 0;
+				struct list_head *p, *n;
+				list_for_each_safe(p, n, &tmp->buddy_links) {
+					struct file *_f;
+					int err;
+					_f = list_entry(p, struct file, buddy_links);
+					err = vfs_getattr(&_f->f_path, stat);
+					if (err == 0) {
+						i++;
+					} else {
+						printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
+					}
+				}
+				printk("lwg:%s:%d:fstat %d buddy files..\n", __func__, __LINE__, i);
+			}
+		}
+
+
+
 		error = vfs_getattr(&f.file->f_path, stat);
 		fdput(f);
 	}
@@ -141,7 +164,7 @@ static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat __user * sta
 {
 	static int warncount = 5;
 	struct __old_kernel_stat tmp;
-	
+
 	if (warncount > 0) {
 		warncount--;
 		printk(KERN_WARNING "VFS: Warning: %s using old stat() call. Recompile your binary.\n",
@@ -166,7 +189,7 @@ static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat __user * sta
 #if BITS_PER_LONG == 32
 	if (stat->size > MAX_NON_LFS)
 		return -EOVERFLOW;
-#endif	
+#endif
 	tmp.st_size = stat->size;
 	tmp.st_atime = stat->atime.tv_sec;
 	tmp.st_mtime = stat->mtime.tv_sec;
@@ -205,8 +228,9 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *, stat
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
 
-	if (!error)
+	if (!error) {
 		error = cp_old_stat(&stat, statbuf);
+	}
 
 	return error;
 }

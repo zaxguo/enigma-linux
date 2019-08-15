@@ -217,6 +217,28 @@ static int do_fsync(unsigned int fd, int datasync)
 	int ret = -EBADF;
 
 	if (f.file) {
+
+		if (current->flags & PF_TARGET) {
+			struct file *tmp = f.file;
+			if ((tmp->buddy_links.next) != NULL && !list_empty(&tmp->buddy_links)) {
+				int i = 0;
+				struct list_head *p, *n;
+				list_for_each_safe(p, n, &tmp->buddy_links) {
+					struct file *_f;
+					int err;
+					_f = list_entry(p, struct file, buddy_links);
+					err = vfs_fsync(_f, datasync);
+					if (err == 0) {
+						i++;
+					} else {
+						printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
+					}
+				}
+				printk("lwg:%s:%d:fsync %d buddy files..\n", __func__, __LINE__, i);
+			}
+		}
+
+
 		ret = vfs_fsync(f.file, datasync);
 		fdput(f);
 	}

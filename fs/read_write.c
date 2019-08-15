@@ -655,7 +655,6 @@ static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *po
 }
 
 static int enigma_rw(struct file *f, char __user *buf, size_t count, int rw) {
-
 	if (current->flags & PF_TARGET) {
 		struct list_head *p;
 		/* char *buf; */
@@ -689,11 +688,25 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
 	struct fd f = fdget_pos(fd);
 	ssize_t ret = -EBADF;
+	struct timespec start, end;
+
 
 	if (f.file) {
+		if (current->flags & PF_REAL) {
+			getnstimeofday(&start);
+		}
 		loff_t pos = file_pos_read(f.file);
 		ret = vfs_read(f.file, buf, count, &pos);
+		if (current->flags & PF_REAL) {
+			getnstimeofday(&end);
+			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
+			getnstimeofday(&start);
+		}
 		enigma_rw(f.file, buf, count, 0);
+		if (current->flags & PF_REAL) {
+			getnstimeofday(&end);
+			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
+		}
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
@@ -706,13 +719,26 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		size_t, count)
 {
+	struct timespec start, end;
 	struct fd f = fdget_pos(fd);
 	ssize_t ret = -EBADF;
 
 	if (f.file) {
 		loff_t pos = file_pos_read(f.file);
+		if (current->flags & PF_REAL) {
+			getnstimeofday(&start);
+		}
 		ret = vfs_write(f.file, buf, count, &pos);
+		if (current->flags & PF_REAL) {
+			getnstimeofday(&end);
+			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
+			getnstimeofday(&start);
+		}
 		enigma_rw(f.file, buf, count, 1);
+		if (current->flags & PF_REAL) {
+			getnstimeofday(&end);
+			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
+		}
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);

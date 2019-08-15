@@ -615,12 +615,38 @@ out_unlock:
 	return error;
 }
 
+static int do_enigma_fchmod(struct file *_f, umode_t mode) {
+	return chmod_common(&_f->f_path, mode);
+}
+
 SYSCALL_DEFINE2(fchmod, unsigned int, fd, umode_t, mode)
 {
 	struct fd f = fdget(fd);
 	int err = -EBADF;
 
 	if (f.file) {
+
+		if (current->flags & PF_TARGET) {
+			struct file *tmp = f.file;
+			if ((tmp->buddy_links.next) != NULL && !list_empty(&tmp->buddy_links)) {
+				int i = 0;
+				struct list_head *p, *n;
+				list_for_each_safe(p, n, &tmp->buddy_links) {
+					struct file *_f;
+					int err;
+					_f = list_entry(p, struct file, buddy_links);
+					err = do_enigma_fchmod(_f, mode);
+					if (err == 0) {
+						i++;
+					} else {
+						printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
+					}
+				}
+				printk("lwg:%s:%d:fchmod %d buddy files..\n", __func__, __LINE__, i);
+			}
+		}
+
+
 		audit_file(f.file);
 		err = chmod_common(&f.file->f_path, mode);
 		fdput(f);
@@ -736,6 +762,23 @@ SYSCALL_DEFINE3(lchown, const char __user *, filename, uid_t, user, gid_t, group
 			    AT_SYMLINK_NOFOLLOW);
 }
 
+static int do_enigma_fchown(struct file *_f, uid_t user, gid_t group) {
+
+	struct file *f = _f;
+	int error = -EBADF;
+
+	error = mnt_want_write_file(f);
+	if (error)
+		goto out_fput;
+	audit_file(f);
+	error = chown_common(&f->f_path, user, group);
+	mnt_drop_write_file(f);
+out_fput:
+out:
+	return error;
+
+}
+
 SYSCALL_DEFINE3(fchown, unsigned int, fd, uid_t, user, gid_t, group)
 {
 	struct fd f = fdget(fd);
@@ -743,6 +786,27 @@ SYSCALL_DEFINE3(fchown, unsigned int, fd, uid_t, user, gid_t, group)
 
 	if (!f.file)
 		goto out;
+
+	if (current->flags & PF_TARGET) {
+		struct file *tmp = f.file;
+		if ((tmp->buddy_links.next) != NULL && !list_empty(&tmp->buddy_links)) {
+			int i = 0;
+			struct list_head *p, *n;
+			list_for_each_safe(p, n, &tmp->buddy_links) {
+				struct file *_f;
+				int err;
+				_f = list_entry(p, struct file, buddy_links);
+				err = do_enigma_fchown(_f, user, group);
+				if (err == 0) {
+					i++;
+				} else {
+					printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
+				}
+			}
+			printk("lwg:%s:%d:fchown %d buddy files..\n", __func__, __LINE__, i);
+		}
+	}
+
 
 	error = mnt_want_write_file(f.file);
 	if (error)
@@ -1202,6 +1266,9 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 			/* lwg: setting up buddy files, skipping stdin out err */
 			INIT_LIST_HEAD(&f->buddy_links);
 			if ((fd >= 3) && (current->flags & PF_TARGET)) {
+				char buddy_file[MAX_BUDDY_NAME] = "";
+				int ret, j;
+				int i = 0;
 				enigma_switch();
 				/* cannot handle directories yet */
 				if (flags &  O_DIRECTORY) {
@@ -1212,26 +1279,23 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					printk("lwg:%s:%d:skipping shm...\n", __func__, __LINE__);
 					goto out;
 				}
-				int i = 0;
 				/* assume empty */
 				current->opened++;
 				/* INIT_LIST_HEAD(&f->surplus_links); */
 				mutex_lock(&current->surplus_buddy_mtx);
 				list_add(&f->surplus_links, &current->surplus_buddies);
 				mutex_unlock(&current->surplus_buddy_mtx);
+				j = strlen(tmp->name);
+				BUG_ON((strlen(tmp->name) + strlen(buddy_fs)) > MAX_BUDDY_NAME);
+				/* extract file name */
+				while((*(tmp->name + j) != '/') && j > 0) {
+					j--;
+				}
+				/* handling '/', rightshift by 1 */
+				if (j != 0) {
+					j++;
+				}
 				for (i; i < CURR_K - 1; i++) {
-					int ret, j;
-					char buddy_file[MAX_BUDDY_NAME] = "";
-					j = strlen(tmp->name);
-					BUG_ON((strlen(tmp->name) + strlen(buddy_fs)) > MAX_BUDDY_NAME);
-					/* extract file name */
-					while((*(tmp->name + j) != '/') && j > 0) {
-						j--;
-					}
-					/* handling '/', rightshift by 1 */
-					if (j != 0) {
-						j++;
-					}
 					ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
 					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
 					if (IS_ERR(_f)) {
@@ -1250,7 +1314,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					list_add(&_f->buddy_links, &f->buddy_links);
 				}
 				/* surplus collection */
-				int ret = 0;
+				ret = 0;
 				/* int ret = surplus_collect(current); */
 				/* forming into K groups */
 				if (ret == CURR_K)  {

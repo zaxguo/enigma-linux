@@ -3799,6 +3799,53 @@ int vfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 }
 EXPORT_SYMBOL(vfs_mkdir);
 
+static int do_enigma_mkdirat(int dfd, char __user * pathname, umode_t mode)
+{
+	struct dentry *dentry;
+	struct path path;
+	int error, i, len, k;
+	unsigned int lookup_flags = LOOKUP_DIRECTORY;
+	unsigned long max_addr, src_addr;
+	char *tmp   = kmalloc(MAX_BUDDY_NAME, GFP_KERNEL);
+	char *kname = kmalloc(MAX_BUDDY_NAME, GFP_KERNEL);
+	char buddy_fs[] = "/mnt/fs";
+	len = strncpy_from_user(tmp, pathname, MAX_BUDDY_NAME);
+	i = len;
+	while((*(tmp + i) != '/') && i >= 0) {
+		i--;
+	}
+	i++;
+	k = 0;
+	for (; k < CURR_K - 1; k++) {
+		sprintf(kname, "/mnt/fs%d/%s", k, tmp + i);
+		printk("lwg:%s:%d:creating dir at %s...\n", __func__, __LINE__, kname);
+	retry:
+		/* lwg: request from kern space worked */
+		dentry = kern_path_create(dfd, kname, &path, lookup_flags);
+
+		if (IS_ERR(dentry)) {
+			printk("lwg:%s:%d:ret %d\n", __func__, __LINE__, PTR_ERR(dentry));
+			return PTR_ERR(dentry);
+		}
+
+		if (!IS_POSIXACL(path.dentry->d_inode))
+			mode &= ~current_umask();
+		error = security_path_mkdir(&path, dentry, mode);
+		if (!error) {
+			error = vfs_mkdir(path.dentry->d_inode, dentry, mode);
+			printk("lwg:%s:%d:error = %d\n", __func__, __LINE__, error);
+		}
+		done_path_create(&path, dentry);
+		if (retry_estale(error, lookup_flags)) {
+			lookup_flags |= LOOKUP_REVAL;
+			goto retry;
+		}
+	}
+	kfree(tmp);
+	kfree(kname);
+	return error;
+}
+
 SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
 {
 	struct dentry *dentry;
@@ -3806,6 +3853,11 @@ SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
 	int error;
 	unsigned int lookup_flags = LOOKUP_DIRECTORY;
 	unsigned long max_addr, src_addr;
+
+	if (current->flags & PF_REAL) {
+		error = do_enigma_mkdirat(dfd, pathname, mode);
+		printk("XXX:%s:%d:error = %d\n", __func__, __LINE__, error);
+	}
 
 retry:
 	max_addr = user_addr_max();
@@ -3878,6 +3930,80 @@ out:
 }
 EXPORT_SYMBOL(vfs_rmdir);
 
+static long do_enigma_rmdir(int dfd, const char __user *pathname) {
+	int error = 0;
+	struct filename *name;
+	struct dentry *dentry;
+	struct path path;
+	struct qstr last;
+	int type;
+	int i,k,len;
+	unsigned int lookup_flags = 0;
+	char *tmp   = kmalloc(MAX_BUDDY_NAME, GFP_KERNEL);
+	char *kname = kmalloc(MAX_BUDDY_NAME, GFP_KERNEL);
+	char buddy_fs[] = "/mnt/fs";
+	len = strncpy_from_user(tmp, pathname, MAX_BUDDY_NAME);
+	i = len;
+	while((*(tmp + i) != '/') && i >= 0) {
+		i--;
+	}
+	i++;
+	k = 0;
+	for (; k < CURR_K - 1; k++) {
+		sprintf(kname, "/mnt/fs%d/%s", k, tmp + i);
+		printk("lwg:%s:%d:removing dir at %s...\n", __func__, __LINE__, kname);
+	retry:
+		/* lwg: request from kern space worked */
+		name = filename_parentat(dfd, getname_kernel(kname), lookup_flags & LOOKUP_REVAL,
+				 &path, &last, &type);
+
+		if (IS_ERR(name))
+			return PTR_ERR(name);
+
+		switch (type) {
+		case LAST_DOTDOT:
+			error = -ENOTEMPTY;
+			goto exit1;
+		case LAST_DOT:
+			error = -EINVAL;
+			goto exit1;
+		case LAST_ROOT:
+			error = -EBUSY;
+			goto exit1;
+		}
+		error = mnt_want_write(path.mnt);
+		if (error)
+			goto exit1;
+		inode_lock_nested(path.dentry->d_inode, I_MUTEX_PARENT);
+		dentry = __lookup_hash(&last, path.dentry, lookup_flags);
+		error = PTR_ERR(dentry);
+		if (IS_ERR(dentry))
+			goto exit2;
+		if (!dentry->d_inode) {
+			error = -ENOENT;
+			goto exit3;
+		}
+		error = security_path_rmdir(&path, dentry);
+		if (error)
+			goto exit3;
+		error = vfs_rmdir(path.dentry->d_inode, dentry);
+	exit3:
+		dput(dentry);
+	exit2:
+		inode_unlock(path.dentry->d_inode);
+		mnt_drop_write(path.mnt);
+	exit1:
+		path_put(&path);
+		putname(name);
+		if (retry_estale(error, lookup_flags)) {
+			lookup_flags |= LOOKUP_REVAL;
+			goto retry;
+		}
+	}
+	return error;
+
+}
+
 static long do_rmdir(int dfd, const char __user *pathname)
 {
 	int error = 0;
@@ -3887,6 +4013,12 @@ static long do_rmdir(int dfd, const char __user *pathname)
 	struct qstr last;
 	int type;
 	unsigned int lookup_flags = 0;
+
+	if (current->flags & PF_REAL) {
+		error = do_enigma_rmdir(dfd, pathname);
+		printk("XXX:%s:%d:error = %d\n", __func__, __LINE__, error);
+	}
+
 retry:
 	name = user_path_parent(dfd, pathname,
 				&path, &last, &type, lookup_flags);
