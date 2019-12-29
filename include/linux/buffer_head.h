@@ -17,10 +17,10 @@
 /* OFS use */
 #include <ofs/ofs_util.h>
 /* To package request */
-#include <ofs/ofs_opcode.h> 
+#include <ofs/ofs_opcode.h>
 #include <linux/tee_drv.h>
 
-extern struct tee_shm *ofs_shm; 
+extern struct tee_shm *ofs_shm;
 extern struct arm_smccc_res ofs_res;
 
 #ifdef CONFIG_BLOCK
@@ -325,9 +325,9 @@ sb_bread(struct super_block *sb, sector_t block)
 		msg = recv_ofs_msg(ofs_shm);
 		ofs_blk_read(msg, block);
 		/* TODO: move switch inside blk_read? */
-//		ofs_switch_resume(&ofs_res);					 
+//		ofs_switch_resume(&ofs_res);
 		/* blk req is a function call should not resume */
-		ofs_switch(&ofs_res);					
+		ofs_switch(&ofs_res);
 		bh = __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
 		byte = (uint8_t *)bh->b_data;
 		for (i = 0; i < sb->s_blocksize; i++) {
@@ -339,7 +339,7 @@ sb_bread(struct super_block *sb, sector_t block)
 		return bh;
 	}
 #endif
-	/* Here the bh read  requests are still logical block (i.e., the block size specified when mke2fs,
+	/* lwg: Here the bh read  requests are still logical block (i.e., the block size specified when mke2fs,
 	 * later this will be translated into physical block number, corresponding to the physical block size
 	 * of the block device */
 	return __bread_gfp(sb->s_bdev, block, sb->s_blocksize, __GFP_MOVABLE);
@@ -357,6 +357,7 @@ sb_breadahead(struct super_block *sb, sector_t block)
 	__breadahead(sb->s_bdev, block, sb->s_blocksize);
 }
 
+/* lwg: sb_getblk really just allocates a buffer head for the block... not really read any disk block */
 static inline struct buffer_head *
 sb_getblk(struct super_block *sb, sector_t block)
 {

@@ -2093,11 +2093,33 @@ blk_qc_t submit_bio(struct bio *bio)
 		/* target app is submitting BIO */
 		if (tsk->flags & PF_TARGET) {
 			int i;
+			char b[BDEVNAME_SIZE];
+			struct buffer_head *bh;
 			if (tsk->flags & PF_REAL) {
 				for (i = 0; i < CURR_K; i++)
 					enigma_switch();
 			} else {
 					enigma_switch();
+			}
+
+			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors), req_meta = %d\n",
+			current->comm, task_pid_nr(current),
+				op_is_write(bio_op(bio)) ? "WRITE" : "READ",
+				(unsigned long long)bio->bi_iter.bi_sector,
+				bdevname(bio->bi_bdev, b),
+				count,
+				bio->bi_opf & REQ_META);
+
+			/* lwg: take one for experiments */
+			struct page *page = bio_page(bio);
+			/* lwg: supposed to attach to a page */
+			if (likely(page)) {
+					printk("lwg:%s:%d:addr_mapping points to %p, private = %d\n", __func__, __LINE__, page->mapping, page_has_private(page));
+					/* low bit set -- points to anon vma, in kernel space ==> data req */
+					/* low bit clear -- points to addrspace struct ==> meta req ?? */
+			} else {
+					printk("lwg:%s:%d: how come it does not have a mapping??\n", __func__, __LINE__);
+					dump_stack();
 			}
 		}
 		put_task_struct(current);

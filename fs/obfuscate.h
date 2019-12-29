@@ -9,8 +9,11 @@
 #define O_OURS		00000004
 
 
-// #define lwg_printk(fmt, ...)	printk("lwg:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#ifdef ENIGMA_DEBUG
+#define lwg_printk(fmt, ...)	printk("lwg:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#else
 #define lwg_printk(fmt, ...) (void)0
+#endif
 
 extern struct arm_smccc_res enigma_res;
 extern int enigma_k;

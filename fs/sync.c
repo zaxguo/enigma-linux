@@ -231,7 +231,8 @@ static int do_fsync(unsigned int fd, int datasync)
 					if (err == 0) {
 						i++;
 					} else {
-						printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
+						/* lwg: this returns invalid arguments */
+						printk("lwg:%s:%d:err = %d, invalid arguments due to buddy_fops do not have sync function!\n", __func__ ,__LINE__, err);
 					}
 				}
 				printk("lwg:%s:%d:fsync %d buddy files..\n", __func__, __LINE__, i);

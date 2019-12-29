@@ -52,6 +52,8 @@ static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
 
 #define BH_ENTRY(list) list_entry((list), struct buffer_head, b_assoc_buffers)
 
+
+
 void init_buffer(struct buffer_head *bh, bh_end_io_t *handler, void *private)
 {
 	bh->b_end_io = handler;
@@ -1079,6 +1081,7 @@ grow_buffers(struct block_device *bdev, sector_t block, int size, gfp_t gfp)
 	return grow_dev_page(bdev, block, index, size, sizebits, gfp);
 }
 
+/* lwg: __getblk_slow is the ultimate place to really "read" a disk block ??? */
 static struct buffer_head *
 __getblk_slow(struct block_device *bdev, sector_t block,
 	     unsigned size, gfp_t gfp)
@@ -1217,6 +1220,7 @@ void __bforget(struct buffer_head *bh)
 }
 EXPORT_SYMBOL(__bforget);
 
+/* lwg: this directly submits bio */
 static struct buffer_head *__bread_slow(struct buffer_head *bh)
 {
 	lock_buffer(bh);
@@ -3462,6 +3466,7 @@ EXPORT_SYMBOL(bh_uptodate_or_lock);
  *
  * Returns zero on success and -EIO on error.
  */
+/* lwg: so wait_on_buffer is the ultimate flag indicating a read/write is sync or async */
 int bh_submit_read(struct buffer_head *bh)
 {
 	BUG_ON(!buffer_locked(bh));

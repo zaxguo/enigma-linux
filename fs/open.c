@@ -242,7 +242,7 @@ static long do_sys_ftruncate(unsigned int fd, loff_t length, int small)
 					printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
 				}
 			}
-			printk("lwg:%s:%d:truncate %d buddy files..\n", __func__, __LINE__, i);
+			lwg_printk("lwg:%s:%d:truncate %d buddy files..\n", __func__, __LINE__, i);
 		}
 	}
 
@@ -642,7 +642,7 @@ SYSCALL_DEFINE2(fchmod, unsigned int, fd, umode_t, mode)
 						printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
 					}
 				}
-				printk("lwg:%s:%d:fchmod %d buddy files..\n", __func__, __LINE__, i);
+				lwg_printk("lwg:%s:%d:fchmod %d buddy files..\n", __func__, __LINE__, i);
 			}
 		}
 
@@ -803,7 +803,7 @@ SYSCALL_DEFINE3(fchown, unsigned int, fd, uid_t, user, gid_t, group)
 					printk("lwg:%s:%d:err = %d\n", __func__ ,__LINE__, err);
 				}
 			}
-			printk("lwg:%s:%d:fchown %d buddy files..\n", __func__, __LINE__, i);
+			lwg_printk("lwg:%s:%d:fchown %d buddy files..\n", __func__, __LINE__, i);
 		}
 	}
 
@@ -1233,16 +1233,22 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	if (fd)
 		return fd;
 
+
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
+	int name_len = strlen(tmp->name);
+	/* lwg: opening an fs img file, noatime */
+	if (!strncmp(tmp->name + name_len - 4, ".img", 4)) {
+		flags |= O_NOATIME;
+	}
 
 	fd = get_unused_fd_flags(flags);
 
 	if (current->flags & PF_REAL) {
 		if (op.open_flag & O_RDWR) {
-			printk("lwg:%s:%d:DIO for %s...\n", __func__, __LINE__, tmp->name);
+			lwg_printk("lwg:%s:%d:DIO for %s...\n", __func__, __LINE__, tmp->name);
 			op.open_flag |= O_SYNC;
 		}
 	}
@@ -1257,7 +1263,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		} else {
 			if (current->flags & PF_REAL) {
 				if (op.open_flag & O_RDWR) {
-					printk("lwg:%s:%d:setting our file %s...\n", __func__, __LINE__, tmp->name);
+					lwg_printk("lwg:%s:%d:setting our file %s...\n", __func__, __LINE__, tmp->name);
 					f->f_flags |= O_OURS;
 				}
 			}
@@ -1297,10 +1303,12 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				}
 				for (i; i < CURR_K - 1; i++) {
 					ret = sprintf(buddy_file, "/mnt/fs%d/%s", i, tmp->name + j);
-					struct file *_f = filp_open(buddy_file, flags | O_CREAT, mode);
+					struct file *_f = filp_open(buddy_file, flags | O_CREAT | O_NOATIME, mode);
 					if (IS_ERR(_f)) {
 						printk("err...cannot open %s, name in real op is %s\n",  buddy_file, tmp->name);
 						continue;
+					} else {
+						lwg_printk("lwg:%s:%d: opening our sybil fs...\n", __func__, __LINE__);
 					}
 					_f->f_mode = f->f_mode;
 					_f->f_flags = f->f_flags;
@@ -1327,6 +1335,8 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	}
 out:
 	putname(tmp);
+
+
 
 
 	return fd;

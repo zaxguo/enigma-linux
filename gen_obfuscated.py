@@ -17,8 +17,10 @@ from skbio.alignment import StripedSmithWaterman
 from skbio.alignment import local_pairwise_align_protein
 from skbio.alignment import local_pairwise_align
 from skbio.alignment import make_identity_substitution_matrix
+from datetime import timedelta
+import time
 
-k = 5
+k = 6
 
 # read 0, write 1, llseek 2, fstat 3    ftruncate 4
 # ours 5        6         7        8    ftruncate 9
@@ -27,21 +29,42 @@ ops_dic = ["read", "write", "llseek", "fstat", "ftruncate",
         "_read_", "_write_", "_llseek_", "_fstat_", "_ftruncate_", "EOF"]
 
 # implementing malgene..
+wa = 2 # same type and same args
+nwa = -2 # same type but different args
+wt = 3 # same type (name)
+nwt = -2 # not same type
 
 def bias(a,b):
-    bias = 20 # if it is an important syscall
+    bias = 1 # if it is an important syscall
     return bias
 
-def namesim(a,b):
-    return
+def attribsim(a,b):
+    name_a = ops_dic[int(a)].strip('_')
+    name_b = ops_dic[int(b)].strip('_')
+    # they can only have same attrib when a == b
+    if int(a) == int(b):
+        return wa
+    # same name but with different attrib
+    elif name_a.startswith(name_b):
+        return nwa
+    else:
+        return 0
 
+def namesim(a,b):
+    name_a = ops_dic[int(a)].strip('_')
+    name_b = ops_dic[int(b)].strip('_')
+    if name_a.startswith(name_b):
+        return wt
+    return nwt
 
 def sim(a, b):
-    wa = 2 # same type and same args
-    nwa = -2 # same type but different args
-    wt = 3 # same type
-    nwt = -2 # not same type
     return bias(a, b)*(namesim(a,b) * attribsim(a,b))
+
+def calibrate(matrix):
+    alphabet = "0123456789"
+    for i in alphabet:
+        for j in alphabet:
+            matrix[i][j] = sim(i, j)
 
 class SyscallSequence(GrammaredSequence):
     """
@@ -69,6 +92,9 @@ class SyscallSequence(GrammaredSequence):
 # where y is actually a sub-sequence from x
 # x = np.array([1,1,9,2,3, 4, 2, 1, 6, 1, 1, 1, 3, 6, 4,1,6, 2, 4,1,2, 2,2,7, 1,4, 1, 2, 8, 3,4, 1, 10, 1])#.reshape(-1, 1)
 #x = np.array([9, 6, 6, 6, 8, 7, 10])#.reshape(-1, 1)
+
+start_time = time.monotonic()
+
 x = np.array([8, 5, 5, 5, 7, 6, 9])#.reshape(-1, 1)
 orig = x
 
@@ -95,7 +121,7 @@ def gen_y(y, k):
     return x
 
 matrix = make_identity_substitution_matrix(2, 1, '0123456789')
-print(matrix)
+calibrate(matrix)
 
 
 
@@ -114,13 +140,13 @@ def list_to_str(a):
 for i in range(5, 9):
     y = gen_y(x, i)
     print("K = ", i, ":")
+    print("x = ", x)
     for op in y:
         print(ops_dic[op], end=', ')
     print("")
 
-    query = StripedSmithWaterman(list_to_str(y))
-    # this is to find all possible sequence  len(comb) = n * n * n ... n = len(ops)
-    # comb = product(ops, repeat=len(x))
+    # this is to find all possible sequence  len(comb) = n * n * n ... (n = len(ops))
+    #comb = product(ops, repeat=len(x))
     # this is to get combinations from a sequence len(comb) = C(m,n)
     comb = combinations(y, len(orig))
     '''
@@ -146,14 +172,18 @@ for i in range(5, 9):
         target = list_to_str(y)
         for i in list(comb):
             x = list_to_str(i)
-            print(x)
-            print(target)
+#            print(x)
+#            print(target)
             alignment, score, pos = local_pairwise_align(SyscallSequence(list_to_str(i)), SyscallSequence(target), gap_open_penalty=-2, gap_extend_penalty=-0.01, substitution_matrix = matrix)
             print(alignment)
             print(score)
             if score > best:
                 best = score
+                best_alignment = alignment
                 _best_x = x
+        print("----- Best alignment: -----")
+        print("score: ", best)
+        print(best_alignment)
         return _best_x
 
     #  best_x = dtw_calc_best_x(comb)
@@ -162,17 +192,20 @@ for i in range(5, 9):
     # best_x = [6, 9, 6, 8, 6, 10, 6] K = 6
     # best_x = [6, 9, 6, 8, 6, 10, 6] K = 7
     # best_x = (6, 9, 9, 6, 8, 6, 10) K = 8
-    best, best_cost_matrix, best_acc_cost_matrix, best_path = dtw(best_x, y, dist=euclidean_norm)
+    #best, best_cost_matrix, best_acc_cost_matrix, best_path = dtw(best_x, y, dist=euclidean_norm)
 
-    print(best, best_x)
+    #print(best, best_x)
+    print(best_x)
+    end_time = time.monotonic()
+    print('Duration: {}'.format(end_time - start_time))
 
     #plt.imshow(best_acc_cost_matrix.T - acc_cost_matrix.T, origin='lower', cmap='gray', interpolation='nearest')
 
-    fig = plt.gcf()
-    plt.plot(path[0], path[1], 'w')
-    plt.plot(best_path[0], best_path[1], 'r')
-    plt.xticks(np.arange(0, len(x), 1))
-    name = "test-dtw-" + str(i) + ".pdf"
-    fig.savefig(name, bbox_layout='tight')
+#    fig = plt.gcf()
+#    plt.plot(path[0], path[1], 'w')
+#    plt.plot(best_path[0], best_path[1], 'r')
+#    plt.xticks(np.arange(0, len(x), 1))
+#    name = "test-dtw-" + str(i) + ".pdf"
+#    fig.savefig(name, bbox_layout='tight')
 
 

@@ -1086,6 +1086,7 @@ static void dw_mci_submit_data(struct dw_mci *host, struct mmc_data *data)
 	else
 		host->dir_status = DW_MCI_SEND_STATUS;
 
+	/* lwg: some control-related optimization, etc. */
 	dw_mci_ctrl_thld(host, data);
 
 	if (dw_mci_submit_data_dma(host, data)) {
@@ -1234,9 +1235,12 @@ static void __dw_mci_start_request(struct dw_mci *host,
 	host->dir_status = 0;
 
 	data = cmd->data;
+	/* lwg: config mmc host controller for incoming data */
 	if (data) {
 		mci_writel(host, TMOUT, 0xFFFFFFFF);
+		/* lwg: byte count in total */
 		mci_writel(host, BYTCNT, data->blksz*data->blocks);
+		/* lwg: what are the block size... */
 		mci_writel(host, BLKSIZ, data->blksz);
 	}
 
@@ -1247,6 +1251,7 @@ static void __dw_mci_start_request(struct dw_mci *host,
 		cmdflags |= SDMMC_CMD_INIT;
 
 	if (data) {
+		/* lwg: submit data to DMA */
 		dw_mci_submit_data(host, data);
 		wmb(); /* drain writebuffer */
 	}

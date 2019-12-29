@@ -177,6 +177,8 @@ int ext4_mpage_readpages(struct address_space *mapping,
 				map.m_lblk = block_in_file;
 				map.m_len = last_block - block_in_file;
 
+				/* lwg: this maps/finds a disk block to the logical file block
+				 * it also allocates the memory for the buffer head */
 				if (ext4_map_blocks(NULL, inode, &map, 0) < 0) {
 				set_error_page:
 					SetPageError(page);
