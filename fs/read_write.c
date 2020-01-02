@@ -695,28 +695,28 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	ssize_t ret = -EBADF;
 	struct timespec start, end;
 	if (f.file) {
-#ifdef ENIGMA_MEASURE_TIME
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&start);
 			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 		}
-#endif
+/* #endif */
 		loff_t pos = file_pos_read(f.file);
 		ret = vfs_read(f.file, buf, count, &pos);
-#ifdef ENIGMA_MEASURE_TIME
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
 			printk("lwg:%s:%d:actual read takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 			getnstimeofday(&start);
 		}
-#endif
+/* #endif */
 		enigma_rw(f.file, buf, count, 0);
-#ifdef ENIGMA_MEASURE_TIME
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
 			printk("lwg:%s:%d:sybil read takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 		}
-#endif
+/* #endif */
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
@@ -735,26 +735,27 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 
 	if (f.file) {
 		loff_t pos = file_pos_read(f.file);
-#ifdef ENIGMA_MEASURE_TIME
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&start);
+			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 		}
-#endif
+/* #endif */
 		ret = vfs_write(f.file, buf, count, &pos);
-#ifdef ENIGMA_MEASURE_TIME
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
 			printk("lwg:%s:%d:actual write takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 			getnstimeofday(&start);
 		}
-#endif
+/* #endif */
 		enigma_rw(f.file, buf, count, 1);
-#ifdef ENIGMA_MEASURE_TIME
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
 			printk("lwg:%s:%d:sybil writes takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 		}
-#endif
+/* #endif */
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
