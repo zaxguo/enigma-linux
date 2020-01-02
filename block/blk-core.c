@@ -2126,6 +2126,7 @@ blk_qc_t submit_bio(struct bio *bio)
 			} else {
 					enigma_switch();
 			}
+			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 			/* ofs_dump_bio(bio); */
 			/* data req for sybil fs */
 #if 0
