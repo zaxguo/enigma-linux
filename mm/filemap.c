@@ -2664,9 +2664,11 @@ generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 	size_t		write_len;
 	pgoff_t		end;
 	struct iov_iter data;
+#ifdef ENIGMA_MEASURE_TIME
 	if (current->flags & PF_REAL) {
 		getnstimeofday(&t_start);
 	}
+#endif
 
 	write_len = iov_iter_count(from);
 	end = (pos + write_len - 1) >> PAGE_SHIFT;
@@ -2726,10 +2728,12 @@ generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from)
 		iocb->ki_pos = pos;
 	}
 out:
+#ifdef ENIGMA_MEASURE_TIME
 	if (current->flags & PF_REAL) {
 		getnstimeofday(&t_end);
 		printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, t_end.tv_nsec - t_start.tv_nsec);
 	}
+#endif
 	return written;
 }
 EXPORT_SYMBOL(generic_file_direct_write);

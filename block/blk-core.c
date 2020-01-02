@@ -2057,6 +2057,27 @@ out:
 }
 EXPORT_SYMBOL(generic_make_request);
 
+void ofs_dump_bio(struct bio *bio)  {
+	/* turn this off */
+	return;
+	char b[BDEVNAME_SIZE];
+	struct block_device *bd = bio->bi_bdev;
+	char *disk_name = bd->bd_disk->disk_name;
+	unsigned int count = bio_sectors(bio);
+
+	printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors), req_meta = %d, disk = %s\n",
+	current->comm, task_pid_nr(current),
+		op_is_write(bio_op(bio)) ? "WRITE" : "READ",
+		(unsigned long long)bio->bi_iter.bi_sector,
+		bdevname(bio->bi_bdev, b),
+		count,
+		bio->bi_opf & REQ_META,
+		disk_name);
+	return;
+}
+EXPORT_SYMBOL(ofs_dump_bio);
+
+
 /**
  * submit_bio - submit a bio to the block device layer for I/O
  * @bio: The &struct bio which describes the I/O
@@ -2087,41 +2108,38 @@ blk_qc_t submit_bio(struct bio *bio)
 			task_io_account_read(bio->bi_iter.bi_size);
 			count_vm_events(PGPGIN, count);
 		}
+		/* dump all ... */
+		if (CURR_K >= 2) {
+			ofs_dump_bio(bio);
+			struct page *page = bio_page(bio);
+			/* printk("lwg:%s:%d:page = %p, idx = %lx\n", __func__, __LINE__, page, page->index); */
+		}
 
 		get_task_struct(current);
 		tsk = current;
 		/* target app is submitting BIO */
 		if (tsk->flags & PF_TARGET) {
 			int i;
-			char b[BDEVNAME_SIZE];
-			struct buffer_head *bh;
 			if (tsk->flags & PF_REAL) {
 				for (i = 0; i < CURR_K; i++)
 					enigma_switch();
 			} else {
 					enigma_switch();
 			}
-
-			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors), req_meta = %d\n",
-			current->comm, task_pid_nr(current),
-				op_is_write(bio_op(bio)) ? "WRITE" : "READ",
-				(unsigned long long)bio->bi_iter.bi_sector,
-				bdevname(bio->bi_bdev, b),
-				count,
-				bio->bi_opf & REQ_META);
-
-			/* lwg: take one for experiments */
-			struct page *page = bio_page(bio);
-			/* lwg: supposed to attach to a page */
-			if (likely(page)) {
-					printk("lwg:%s:%d:addr_mapping points to %p, private = %d\n", __func__, __LINE__, page->mapping, page_has_private(page));
-					/* low bit set -- points to anon vma, in kernel space ==> data req */
-					/* low bit clear -- points to addrspace struct ==> meta req ?? */
-			} else {
-					printk("lwg:%s:%d: how come it does not have a mapping??\n", __func__, __LINE__);
-					dump_stack();
+			/* ofs_dump_bio(bio); */
+			/* data req for sybil fs */
+#if 0
+			struct block_device *bd = bio->bi_bdev;
+			char *disk_name = bd->bd_disk->disk_name;
+			if ((!strncmp(disk_name, "loop", 4)) && (bio->bi_opf & REQ_META) == 0) {
+				printk("attempting to drop this...");
+				/* put_task_struct(current); */
+				/* return BLK_QC_T_NONE; */
 			}
+#endif
+
 		}
+
 		put_task_struct(current);
 
 		if (unlikely(block_dump)) {

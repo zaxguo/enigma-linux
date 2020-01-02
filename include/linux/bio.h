@@ -417,6 +417,10 @@ static inline void bio_io_error(struct bio *bio)
 	bio_endio(bio);
 }
 
+
+/* lwg: debugging bio */
+void ofs_dump_bio(struct bio* bio);
+
 struct request_queue;
 extern int bio_phys_segments(struct request_queue *, struct bio *);
 

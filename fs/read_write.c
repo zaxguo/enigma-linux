@@ -637,18 +637,23 @@ static size_t enigma_buf_sz;
 static inline ssize_t rw_k(struct file *tmp, char *buf, size_t count, loff_t *pos, int rw) {
 	int i;
 	ssize_t ret = -EBADF;
+	loff_t n_pos;
 	for(i = 0; i < CURR_K; i++) {
+		/* lwg: we donot want to advance the read iter... */
+		n_pos = *pos;
 		if (rw == 0)  {
-			ret = vfs_read(tmp, buf, count, pos);
+			ret = vfs_read(tmp, buf, count, &n_pos);
 		} else {
+#if 0
 			if (tmp->f_op != &buddy_fops) {
 				printk("%s:%d:trying to do real ops here for %s", __func__, __LINE__, tmp->f_path.dentry->d_name.name);
 				return count;
 			}
-			ret = vfs_write(tmp, buf, count, pos);
+#endif
+			ret = vfs_write(tmp, buf, count, &n_pos);
 		}
 		if (ret != count) {
-			printk("%s:%d:pos = %lld, count = %ld, ret = %ld, rw = %d, cur_pos = %lld, name = %s/%s...\n", __func__, __LINE__, *pos, count, ret, rw, tmp->f_pos, tmp->f_path.dentry->d_parent->d_name.name, tmp->f_path.dentry->d_name.name);
+			printk("%s:%d:pos = %lld, count = %ld, ret = %ld, rw = %d, cur_pos = %lld, name = %s/%s...\n", __func__, __LINE__, n_pos, count, ret, rw, tmp->f_pos, tmp->f_path.dentry->d_parent->d_name.name, tmp->f_path.dentry->d_name.name);
 		}
 	}
 	return ret;
@@ -664,7 +669,7 @@ static int enigma_rw(struct file *f, char __user *buf, size_t count, int rw) {
 		lwg_printk("f[%s] = %p, buddy_list_empty = %d\n", f->f_path.dentry->d_name.name, f, list_empty(&f->buddy_links));
 		/* world switch */
 		enigma_switch();
-		/* applied to real fs */
+		/* inject to actual fs */
 		f->f_op =  &buddy_fops;
 		pos = file_pos_read(f);
 		_ret = rw_k(f, buf, count, &pos, rw);
@@ -697,16 +702,20 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		}
 		loff_t pos = file_pos_read(f.file);
 		ret = vfs_read(f.file, buf, count, &pos);
+#ifdef ENIGMA_MEASURE_TIME
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
 			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 			getnstimeofday(&start);
 		}
+#endif
 		enigma_rw(f.file, buf, count, 0);
+#ifdef ENIGMA_MEASURE_TIME
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
 			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 		}
+#endif
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);
@@ -729,16 +738,20 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 			getnstimeofday(&start);
 		}
 		ret = vfs_write(f.file, buf, count, &pos);
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
-			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
+			printk("lwg:%s:%d:actual write takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 			getnstimeofday(&start);
 		}
+/* #endif */
 		enigma_rw(f.file, buf, count, 1);
+/* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
 			getnstimeofday(&end);
-			printk("lwg:%s:%d:takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
+			printk("lwg:%s:%d:sybil writes takes %ld ns...\n", __func__, __LINE__, end.tv_nsec - start.tv_nsec);
 		}
+/* #endif */
 		if (ret >= 0)
 			file_pos_write(f.file, pos);
 		fdput_pos(f);

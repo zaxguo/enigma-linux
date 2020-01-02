@@ -85,6 +85,7 @@
 #include <ofs/ofs_util.h>
 #include <ofs/ofs_net.h>
 #include <linux/list.h>
+extern int enigma_k;
 extern struct tee_device *ofs_tee;
 extern struct tee_context *ofs_tee_context;
 static struct tee_shm *ofs_block;
@@ -337,6 +338,7 @@ static int lo_write_simple(struct loop_device *lo, struct request *rq,
 	struct tee_context *ctx = ofs_tee_context;
 	int ret = 0;
 
+	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	if (is_init) {
 		/* shm = alloc_ofs_shm(ctx,  bvec.bv_len); */
 		if (!ofs_block) {
@@ -395,6 +397,8 @@ static int lo_write_transfer(struct loop_device *lo, struct request *rq,
 	if (unlikely(!page))
 		return -ENOMEM;
 
+
+	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	rq_for_each_segment(bvec, rq, iter) {
 		ret = lo_do_transfer(lo, WRITE, page, 0, bvec.bv_page,
 			bvec.bv_offset, bvec.bv_len, pos >> 9);
@@ -447,6 +451,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	/* debugging */
 	is_init = 0;
 
+	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	if (is_init) {
 		/* is_init = sb->s_flags & MS_OFS; */
 		/* printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__); */
@@ -465,7 +470,6 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 		/* printk("lwg:ofs initialized!!\n"); */
 	}
 
-	/* printk("lwg:%s:%d:start\n", __func__, __LINE__); */
 	rq_for_each_segment(bvec, rq, iter) {
 		iov_iter_bvec(&i, ITER_BVEC, &bvec, 1, bvec.bv_len);
 		sector_t _blocknr = iter.iter.bi_sector;
@@ -487,7 +491,8 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 			/* tee_shm_free(shm); */
 			goto ofs_read_done;
 		}
-		/* printk("lwg:%s:%d:read blk [%llx], len = [%d]\n", __func__, __LINE__, _blocknr, bvec.bv_len); */
+		/* This is to instrument the block req for sybil fses */
+		printk("lwg:%s:%d:read blk [%llx], len = [%d]\n", __func__, __LINE__, _blocknr, bvec.bv_len);
 		len = vfs_iter_read(lo->lo_backing_file, &i, &pos);
 ofs_read_done:
 		if (len < 0) {
@@ -524,6 +529,7 @@ static int lo_read_transfer(struct loop_device *lo, struct request *rq,
 	ssize_t len;
 	int ret = 0;
 
+	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 	page = alloc_page(GFP_NOIO);
 	if (unlikely(!page))
 		return -ENOMEM;
@@ -635,6 +641,16 @@ static int lo_rw_aio(struct loop_device *lo, struct loop_cmd *cmd,
 	struct file *file = lo->lo_backing_file;
 	int ret;
 
+	/* printk("lwg:%s:%d:enter to handle req..\n", __func__, __LINE__); */
+#if 0
+	/* whos submitting small ios... */
+	if (bio_sectors(bio) == 2) {
+		dump_stack();
+	}
+#endif
+
+
+
 	/* nomerge for loop request queue */
 	WARN_ON(cmd->rq->bio != cmd->rq->biotail);
 
@@ -648,10 +664,28 @@ static int lo_rw_aio(struct loop_device *lo, struct loop_cmd *cmd,
 	 */
 	iter.iov_offset = bio->bi_iter.bi_bvec_done;
 
+
+
 	cmd->iocb.ki_pos = pos;
 	cmd->iocb.ki_filp = file;
 	cmd->iocb.ki_complete = lo_rw_aio_complete;
 	cmd->iocb.ki_flags = IOCB_DIRECT;
+
+	struct block_device *bd = bio->bi_bdev;
+	char *disk_name = bd->bd_disk->disk_name;
+	unsigned int count = bio_sectors(bio);
+	ofs_dump_bio(bio);
+	if (!strncmp(disk_name, "loop", 4)) {
+		if (bio->bi_opf & REQ_META) {
+			/* do nothing */
+		} else if (enigma_k > 0 && count > 8) {
+			/* conservative... */
+				printk(KERN_ERR"lwg:%s:%d:attempting to drop [%s] %Lu (%u sectors) on %s...\n", __func__, __LINE__, op_is_write(bio_op(bio)) ? "WRITE" : "READ", (unsigned long long)bio->bi_iter.bi_sector, count,
+disk_name) ;
+				blk_mq_complete_request(cmd->rq, 0);
+				return 0;
+		}
+	}
 
 	if (rw == WRITE)
 		ret = file->f_op->write_iter(&cmd->iocb, &iter);
@@ -668,6 +702,7 @@ static int do_req_filebacked(struct loop_device *lo, struct request *rq)
 	struct loop_cmd *cmd = blk_mq_rq_to_pdu(rq);
 	loff_t pos = ((loff_t) blk_rq_pos(rq) << 9) + lo->lo_offset;
 
+	/* printk("lwg:%s:%d:entered -- OP = %d \n", __func__, __LINE__, req_op(rq)); */
 	/*
 	 * lo_write_simple and lo_read_simple should have been covered
 	 * by io submit style function like lo_rw_aio(), one blocker
