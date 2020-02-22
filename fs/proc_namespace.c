@@ -373,14 +373,14 @@ int sanity_check_bmap(unsigned long *arr, unsigned long cnt) {
 
 
 /* SRC + bmap must produce DST */
-int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct file *dst, unsigned long cnt, unsigned int blkbits) {
+int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct file *dst, unsigned long start, unsigned long cnt, unsigned int blkbits) {
 	unsigned long i;
 	ssize_t ret = -EBADF;
 	loff_t pos, pos_shuffled;
 	char *tmp = kmalloc(1 << blkbits, GFP_KERNEL);
 	char *tmp2 = kmalloc(1 << blkbits, GFP_KERNEL);
 	/* lwg: this should never be called within vfs_read() in case of recursion!!!!! */
-	for (i = 0; i < cnt; i++) {
+	for (i = start; i < start + cnt; i++) {
 		pos = i << blkbits;
 		pos_shuffled = bmap[i] << blkbits;
 		ret = vfs_read(src, tmp, 1 << blkbits, 	&pos);
@@ -476,7 +476,7 @@ static int enigma_data_block_shuffling(char *filename) {
 		new_f = filp_open(new_fname, O_RDWR | O_CREAT, 0);
 		if (!IS_ERR(new_f)) {
 			write_shuffled_data_blocks(f, new_f, bmap, lblks, ino->i_blkbits);
-			ret = sanity_check_shuffled_blocks(f, bmap, new_f, lblks, ino->i_blkbits);
+			ret = sanity_check_shuffled_blocks(f, bmap, new_f, 0, lblks, ino->i_blkbits);
 			/* setting up shuffled f for current process */
 			f->s.bmap = bmap;
 			f->s._f	  = new_f;

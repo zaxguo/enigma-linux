@@ -504,7 +504,7 @@ ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
 }
 EXPORT_SYMBOL(__vfs_read);
 
-int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct file *dst, unsigned long cnt, unsigned int blkbits);
+int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct file *dst, unsigned long start, unsigned long cnt, unsigned int blkbits);
 
 int sanity_check_bmap(unsigned long *arr, unsigned long cnt);
 
@@ -801,22 +801,25 @@ SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf,
 
 	f = fdget(fd);
 	if (f.file) {
-		struct file *file =  f.file;
 		ret = -ESPIPE;
 		if (f.file->f_mode & FMODE_PREAD) {
 #if 1
-			if (has_shuffled_blocks(file)) {
+			struct file *file =  f.file;
+			if (has_shuffled_blocks(f.file)) {
 				unsigned long *bmap = file->s.bmap;
-				struct file *f = file->s._f;
-				if (!sanity_check_shuffled_blocks(file, bmap, f, 1, f->f_inode->i_blkbits)) {
+				struct file *_f = file->s._f;
+				unsigned int blkbits = file->f_inode->i_blkbits;
+				if (!sanity_check_shuffled_blocks(file, bmap, _f, pos >> blkbits, 1, blkbits)) {
 					loff_t new_pos;
 					/* redirect read */
-					file = f;
+					file = _f;
 					new_pos = actual_to_shuffled_blocks(bmap, &pos);
 					goto out;
 				}
+			} else {
+				printk("lwg:%s:%d:%s does not have shuffled block..\n", __func__, __LINE__, file->f_path.dentry->d_name.name);
 			}
-		out:
+out:
 #endif
 			/* ret = vfs_read(f.file, buf, count, &pos); */
 			ret = vfs_read(file, buf, count, &pos);
