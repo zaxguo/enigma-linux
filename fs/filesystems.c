@@ -61,11 +61,11 @@ static struct file_system_type **find_filesystem(const char *name, unsigned len)
  *	is aware of for mount and other syscalls. Returns 0 on success,
  *	or a negative errno code on an error.
  *
- *	The &struct file_system_type that is passed is linked into the kernel 
+ *	The &struct file_system_type that is passed is linked into the kernel
  *	structures and must not be freed until the file system has been
  *	unregistered.
  */
- 
+
 int register_filesystem(struct file_system_type * fs)
 {
 	int res = 0;
@@ -93,11 +93,11 @@ EXPORT_SYMBOL(register_filesystem);
  *	Remove a file system that was previously successfully registered
  *	with the kernel. An error is returned if the file system is not found.
  *	Zero is returned on a success.
- *	
+ *
  *	Once this function has returned the &struct file_system_type structure
  *	may be freed or reused.
  */
- 
+
 int unregister_filesystem(struct file_system_type * fs)
 {
 	struct file_system_type ** tmp;
@@ -179,7 +179,7 @@ static int fs_maxindex(void)
 }
 
 /*
- * Whee.. Weird sysv syscall. 
+ * Whee.. Weird sysv syscall.
  */
 SYSCALL_DEFINE3(sysfs, int, option, unsigned long, arg1, unsigned long, arg2)
 {
@@ -248,9 +248,13 @@ static const struct file_operations filesystems_proc_fops = {
 	.release	= single_release,
 };
 
+extern const struct file_operations proc_enigma_ctrl_operations;
+
 static int __init proc_filesystems_init(void)
 {
 	proc_create("filesystems", 0, NULL, &filesystems_proc_fops);
+	/* lwg: create enigma procfs */
+	proc_create("enigma_ctrl", S_IRUGO | S_IWUGO, NULL, &proc_enigma_ctrl_operations);
 	return 0;
 }
 module_init(proc_filesystems_init);

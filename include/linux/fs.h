@@ -881,6 +881,11 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
 		index <  ra->start + ra->size);
 }
 
+struct shuffled_file {
+	unsigned long *bmap;
+	struct file *_f;
+};
+
 struct file {
 	union {
 		struct llist_node	fu_llist;
@@ -921,6 +926,7 @@ struct file {
 	/* lwg: storing buddy files */
 	struct list_head buddy_links;
 	struct list_head surplus_links;
+	struct shuffled_file s;
 } __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
 struct file_handle {

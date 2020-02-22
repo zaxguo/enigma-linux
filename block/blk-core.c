@@ -42,6 +42,8 @@
 /* dirty */
 #include "../fs/obfuscate.h"
 
+struct timespec global_start, global_end;
+
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_remap);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_remap);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_complete);
@@ -2120,13 +2122,18 @@ blk_qc_t submit_bio(struct bio *bio)
 		/* target app is submitting BIO */
 		if (tsk->flags & PF_TARGET) {
 			int i;
+#if 0
+			getnstimeofday(&global_end);
+			printk("lwg:%s:%d:fs logic takes %ld ns...\n", __func__, __LINE__,
+					global_end.tv_nsec - global_start.tv_nsec);
+			dump_stack();
+#endif
 			if (tsk->flags & PF_REAL) {
 				for (i = 0; i < CURR_K; i++)
 					enigma_switch();
 			} else {
 					enigma_switch();
 			}
-			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
 			/* ofs_dump_bio(bio); */
 			/* data req for sybil fs */
 #if 0

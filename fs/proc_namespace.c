@@ -10,10 +10,13 @@
 #include <linux/nsproxy.h>
 #include <linux/security.h>
 #include <linux/fs_struct.h>
+#include <linux/random.h>
+#include <linux/fdtable.h>
 #include "proc/internal.h" /* only for get_proc_task() in ->open() */
 
 #include "pnode.h"
 #include "internal.h"
+#include "obfuscate.h"
 
 static unsigned mounts_poll(struct file *file, poll_table *wait)
 {
@@ -325,9 +328,202 @@ static ssize_t mounts_write(struct file *file, const char __user *buf, size_t co
 	}
 	sscanf(tmp, "%d\n", &k);
 	enigma_k = k;
-	printk("lwg:Adjusting K to %d...\n", enigma_k);
+	printk("lwg:%s:Adjusting K to %d...\n", __func__, enigma_k);
 	return count;
 }
+
+
+static inline unsigned long get_lblk_cnt(struct inode *inode) {
+	return (i_size_read(inode) + (1 << inode->i_blkbits) - 1)
+							>> inode->i_blkbits;
+}
+
+/* lwg: from lib/sort.c*/
+static void u64_swap(void *a, void *b)
+{
+	u64 t = *(u64 *)a;
+	*(u64 *)a = *(u64 *)b;
+	*(u64 *)b = t;
+}
+
+/* Fisher-Yate shuffling algo */
+static int shuffle_bmap(unsigned long *arr, unsigned long cnt) {
+	unsigned long i;
+	for (i = cnt - 1; i > 0; i--) {
+		unsigned long j = get_random_long() % (i + 1);
+		u64_swap(&arr[i], &arr[j]);
+	}
+	return 0;
+}
+
+int sanity_check_bmap(unsigned long *arr, unsigned long cnt) {
+	unsigned long i, result, comp;
+	result	= 0;
+	comp = 0;
+	for (i = cnt - 1; i > cnt - 10 ; i--) {
+			printk("[%d]:%lu ", i, arr[i]);
+	}
+	printk("\n");
+	for (i = 0; i < cnt; i++) {
+		result += i;
+		comp += arr[i];
+	}
+	return (comp == result);
+}
+
+
+/* SRC + bmap must produce DST */
+int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct file *dst, unsigned long cnt, unsigned int blkbits) {
+	unsigned long i;
+	ssize_t ret = -EBADF;
+	loff_t pos, pos_shuffled;
+	char *tmp = kmalloc(1 << blkbits, GFP_KERNEL);
+	char *tmp2 = kmalloc(1 << blkbits, GFP_KERNEL);
+	/* lwg: this should never be called within vfs_read() in case of recursion!!!!! */
+	for (i = 0; i < cnt; i++) {
+		pos = i << blkbits;
+		pos_shuffled = bmap[i] << blkbits;
+		ret = vfs_read(src, tmp, 1 << blkbits, 	&pos);
+		ret = vfs_read(dst, tmp2, 1 << blkbits, &pos_shuffled);
+		if (memcmp(tmp, tmp2, 1 << blkbits) != 0) {
+			printk(KERN_ERR"lwg:%s:%d:bmap does not recover at [%ld] lblk of the original file!!!\n", __func__, __LINE__, i);
+			return -1;
+		}
+	}
+	kfree(tmp);
+	kfree(tmp2);
+	printk("lwg:%s:%d:sanity checked passed\n", __func__, __LINE__);
+	return 0;
+}
+
+
+/* must be done _after_ shuffling */
+static int write_shuffled_data_blocks(struct file *src, struct file *dst, unsigned long *bmap, unsigned long cnt, unsigned int blkbits) {
+	unsigned long i;
+	char *tmp = kmalloc(1 << blkbits, GFP_KERNEL);
+	ssize_t ret = -EBADF;
+	/* lets assume file is allocated to at least two logical block */
+	WARN_ON(cnt == 0);
+	for (i = 0; i < cnt; i++) {
+		loff_t pos = i << blkbits;
+		loff_t dst_pos = bmap[i] << blkbits;
+		size_t count = 1 << blkbits;
+		ret = vfs_read(src, tmp,  count, &pos);
+		if (ret <= 0) {
+			printk("lwg:%s:%d:reading data block goes wrong! i = %ld, count = %ld, RET = %ld, bits = %d\n", __func__, __LINE__, i, count, ret, blkbits);
+			goto complete;
+		}
+		ret = vfs_write(dst, tmp, count, &dst_pos);
+		if (ret <= 0) {
+			printk("lwg:%s:%d:writing sybil file goes wrong...\n", __func__, __LINE__);
+			goto complete;
+		}
+	}
+complete:
+	/* Should I write back to the original file? */
+	kfree(tmp);
+	return ret;
+
+}
+
+
+static struct file *get_current_matching_file(char *filename) {
+	/* struct file_struct *files = get_files_struct(current); */
+	/* hard coded... */
+	return fcheck(3);
+}
+
+
+static int enigma_data_block_shuffling(char *filename) {
+	/* printk("lwg:%s;%d:caller %s\n", __func__, __LINE__, current->comm); */
+	/* struct file *f = filp_open(filename, O_RDWR, 0); */
+	struct file *f = fcheck(3);
+	printk("lwg:%s;%d:caller %s\n", __func__, __LINE__, current->comm);
+	if (IS_ERR(f)) {
+		printk("lwg:%s:%d:fail to open the file %s...\n", __func__, __LINE__, filename);
+		return 0;
+	}
+	struct inode *ino = file_inode(f);
+	if (!ino) {
+		printk("lwg:%s:%d:%s does not have inode??...\n", __func__, __LINE__, filename);
+		return 0;
+	}
+	/* lwg: data shuffling performed on VFS level */
+	/* get logical block number */
+	unsigned long lblks = get_lblk_cnt(ino);
+
+	if (lblks > 0) {
+		/* lwg:XXX: let's hope the stack is big enough */
+		unsigned long *bmap;
+		/* unsigned long *bmap[lblks]; */
+		unsigned long i;
+		int ret;
+		struct file *new_f;
+		char *new_fname;
+		/* init the array */
+		bmap = (unsigned long *)kmalloc(lblks * sizeof(unsigned long), GFP_KERNEL);
+		for (i = 0; i < lblks; i++) {
+			bmap[i] = i;
+		}
+		/* we donot want to shuffle the last block */
+		ret = shuffle_bmap(bmap, lblks - 1);
+		printk("lwg:%s:%d:[%s] has %lu logical blocks, bits = %d, size = %ld\n", __func__, __LINE__, filename, lblks, ino->i_blkbits, ino->i_size);
+		if (!sanity_check_bmap(bmap, lblks)) {
+			printk("lwg:%s:%d:warning!!! bmap may go wrong!\n", __func__, __LINE__);
+		}
+		/* shuffle ALL but the last logical block */
+		new_fname = strcat(filename, "-shuffled");
+		new_f = filp_open(new_fname, O_RDWR | O_CREAT, 0);
+		if (!IS_ERR(new_f)) {
+			write_shuffled_data_blocks(f, new_f, bmap, lblks, ino->i_blkbits);
+			ret = sanity_check_shuffled_blocks(f, bmap, new_f, lblks, ino->i_blkbits);
+			/* setting up shuffled f for current process */
+			f->s.bmap = bmap;
+			f->s._f	  = new_f;
+			printk("lwg:%s:%d:shuffled file and bmap created!\n", __func__, __LINE__);
+		} else {
+			printk("lwg:%s:%d:unable to create shuffled file!\n", __func__, __LINE__);
+		}
+
+	}
+	return 0;
+}
+
+static ssize_t enigma_ctrl_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+	int ret;
+	char tmp[128];
+	char str[64];
+	int k= 0;
+	if (copy_from_user(tmp, buf, count)) {
+		return -EFAULT;
+	}
+	ret = sscanf(tmp, "%d %s\n", &k, str);
+	if (ret == 2) { /* matched two, data shuffling */
+		printk("lwg:%s:shuffling data blocks for %s...\n", __func__, str);
+		/* data block shuffling .... */
+		enigma_data_block_shuffling(str);
+	} else if (ret == 1) {
+		enigma_k = k;
+		printk("lwg:%s:Adjusting K to %d...\n", __func__, enigma_k);
+	}
+	return count;
+}
+
+
+static int enigma_ctrl_show(struct seq_file *m, void *v) {
+
+	seq_printf(m, "----- Helper of Enigma Ctrl -----\n");
+	seq_printf(m, "0 [filename]: shuffling file data blocks of [filename]\n");
+	seq_printf(m, "1 [CURR_K]  : adjusting curr K to CURR_K\n");
+	return 0;
+}
+
+
+static int enigma_ctrl_open(struct inode *inode, struct file *file) {
+	return single_open(file, enigma_ctrl_show, NULL);
+}
+
+
 
 const struct file_operations proc_mounts_operations = {
 	.open		= mounts_open,
@@ -337,6 +533,17 @@ const struct file_operations proc_mounts_operations = {
 	.release	= mounts_release,
 	.poll		= mounts_poll,
 };
+
+
+const struct file_operations proc_enigma_ctrl_operations = {
+	.open		= enigma_ctrl_open,
+	.write		= enigma_ctrl_write, /* lwg: XXX used to adjust K */
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+
 
 const struct file_operations proc_mountinfo_operations = {
 	.open		= mountinfo_open,

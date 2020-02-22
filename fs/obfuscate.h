@@ -7,7 +7,9 @@
 #define ALT_APP "alt.out"
 #define MAX_BUDDY_NAME 128
 #define O_OURS		00000004
+#define O_SHUFFLED	040000000
 
+// #define ENIGMA_DEBUG
 
 #ifdef ENIGMA_DEBUG
 #define lwg_printk(fmt, ...)	printk("lwg:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)

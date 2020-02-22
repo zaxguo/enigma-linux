@@ -37,6 +37,10 @@ const struct file_operations generic_ro_fops = {
 
 EXPORT_SYMBOL(generic_ro_fops);
 
+static int has_shuffled_blocks(struct file *f) {
+	return ((f->s.bmap) || (f->s._f));
+}
+
 static inline int unsigned_offsets(struct file *file)
 {
 	return file->f_mode & FMODE_UNSIGNED_OFFSET;
@@ -500,6 +504,25 @@ ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
 }
 EXPORT_SYMBOL(__vfs_read);
 
+int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct file *dst, unsigned long cnt, unsigned int blkbits);
+
+int sanity_check_bmap(unsigned long *arr, unsigned long cnt);
+
+
+static inline loff_t actual_to_shuffled_blocks(unsigned long *bmap, loff_t *pos) {
+#define BLOCK_MASK (~((1 << 12)-1))
+		loff_t new_pos, offset;
+		unsigned long old_lblk, new_lblk;
+		old_lblk = *pos >> 12;
+		new_lblk = bmap[old_lblk];
+		offset = *pos & ~BLOCK_MASK;
+		new_pos = new_lblk << 12 | offset;
+		printk("lwg:%s:%d:old_lblk[%ld] --> new_lblk[%ld]\n", __func__, __LINE__, old_lblk, new_lblk);
+		printk("lwg:%s:%d:old_pos[%ld]  --> new_pos[%ld]\n", __func__, __LINE__, *pos, new_pos);
+		*pos = new_pos;
+		return new_pos;
+}
+
 ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
@@ -513,6 +536,7 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 	if (unlikely(!access_ok(VERIFY_WRITE, buf, count)))
 		return -EFAULT;
 #endif
+
 
 	ret = rw_verify_area(READ, file, pos, count);
 	if (!ret) {
@@ -726,6 +750,8 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	return ret;
 }
 
+extern struct timespec global_start;
+
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		size_t, count)
 {
@@ -737,8 +763,8 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		loff_t pos = file_pos_read(f.file);
 /* #ifdef ENIGMA_MEASURE_TIME */
 		if (current->flags & PF_REAL) {
-			getnstimeofday(&start);
-			printk("lwg:%s:%d:hit\n", __func__, __LINE__);
+			/* getnstimeofday(&start); */
+			/* getnstimeofday(&global_start); */
 		}
 /* #endif */
 		ret = vfs_write(f.file, buf, count, &pos);
@@ -775,9 +801,25 @@ SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf,
 
 	f = fdget(fd);
 	if (f.file) {
+		struct file *file =  f.file;
 		ret = -ESPIPE;
 		if (f.file->f_mode & FMODE_PREAD) {
-			ret = vfs_read(f.file, buf, count, &pos);
+#if 1
+			if (has_shuffled_blocks(file)) {
+				unsigned long *bmap = file->s.bmap;
+				struct file *f = file->s._f;
+				if (!sanity_check_shuffled_blocks(file, bmap, f, 1, f->f_inode->i_blkbits)) {
+					loff_t new_pos;
+					/* redirect read */
+					file = f;
+					new_pos = actual_to_shuffled_blocks(bmap, &pos);
+					goto out;
+				}
+			}
+		out:
+#endif
+			/* ret = vfs_read(f.file, buf, count, &pos); */
+			ret = vfs_read(file, buf, count, &pos);
 			enigma_rw(f.file, buf, count, 0);
 		}
 		fdput(f);
