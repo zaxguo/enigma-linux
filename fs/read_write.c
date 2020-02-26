@@ -509,18 +509,33 @@ int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct f
 int sanity_check_bmap(unsigned long *arr, unsigned long cnt);
 
 
-static inline loff_t actual_to_shuffled_blocks(unsigned long *bmap, loff_t *pos) {
-#define BLOCK_MASK (~((1 << 12)-1))
+static inline loff_t _actual_to_shuffled_blocks(unsigned long *bmap, loff_t *pos, unsigned int blkbits) {
 		loff_t new_pos, offset;
+		unsigned int block_mask = ~((1 << blkbits) - 1);
 		unsigned long old_lblk, new_lblk;
-		old_lblk = *pos >> 12;
+		old_lblk = *pos >> blkbits;
 		new_lblk = bmap[old_lblk];
-		offset = *pos & ~BLOCK_MASK;
-		new_pos = new_lblk << 12 | offset;
-		printk("lwg:%s:%d:old_lblk[%ld] --> new_lblk[%ld]\n", __func__, __LINE__, old_lblk, new_lblk);
-		printk("lwg:%s:%d:old_pos[%ld]  --> new_pos[%ld]\n", __func__, __LINE__, *pos, new_pos);
+		offset = *pos & ~block_mask;
+		new_pos = new_lblk << blkbits | offset;
+		lwg_printk("lwg:%s:%d:old_lblk[%ld] --> new_lblk[%ld]\n", __func__, __LINE__, old_lblk, new_lblk);
+		lwg_printk("lwg:%s:%d:old_pos[%ld]  --> new_pos[%ld]\n", __func__, __LINE__, *pos, new_pos);
 		*pos = new_pos;
 		return new_pos;
+}
+
+static inline int actual_to_shuffled_blocks(struct file *file, loff_t *pos) {
+	loff_t new_pos;
+	unsigned long *bmap = file->s.bmap;
+	struct file *_f = file->s._f;
+	unsigned int blkbits = file->f_inode->i_blkbits;
+#if 0
+	if (sanity_check_shuffled_blocks(file, bmap, _f, (*pos) >> blkbits, 1, blkbits)) {
+		/* TODO: error handling... */
+		return -1;
+	}
+#endif
+	*pos = _actual_to_shuffled_blocks(bmap, pos, blkbits);
+	return 0;
 }
 
 ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
@@ -805,31 +820,34 @@ SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf,
 		if (f.file->f_mode & FMODE_PREAD) {
 #if 1
 			struct file *file =  f.file;
+			loff_t my_pos = pos;
 			if (has_shuffled_blocks(f.file)) {
-				unsigned long *bmap = file->s.bmap;
-				struct file *_f = file->s._f;
-				unsigned int blkbits = file->f_inode->i_blkbits;
-				if (!sanity_check_shuffled_blocks(file, bmap, _f, pos >> blkbits, 1, blkbits)) {
-					loff_t new_pos;
-					/* redirect read */
-					file = _f;
-					new_pos = actual_to_shuffled_blocks(bmap, &pos);
-					goto out;
+				if (!actual_to_shuffled_blocks(file, &my_pos)) {
+					file = file->s._f;
+					/* temporary... */
+					/* sanity_check_shuffled_blocks(f.file, f.file->s.bmap, file, pos >> 10, 1, 10); */
 				}
-			} else {
-				printk("lwg:%s:%d:%s does not have shuffled block..\n", __func__, __LINE__, file->f_path.dentry->d_name.name);
 			}
-out:
 #endif
 			/* ret = vfs_read(f.file, buf, count, &pos); */
-			ret = vfs_read(file, buf, count, &pos);
-			enigma_rw(f.file, buf, count, 0);
+			ret = vfs_read(file, buf, count, &my_pos);
+			if (has_shuffled_blocks(f.file)) {
+				char *tmp = kmalloc(count, GFP_KERNEL);
+				char *from_user = kmalloc(count, GFP_KERNEL);
+				copy_from_user(from_user, buf, count);
+				vfs_read(f.file, tmp, count, &pos);
+				if (memcmp(tmp, buf, count)) {
+					printk("read at [%lu] does not match!!!!\n", pos);
+				}
+			}
+			/* enigma_rw(f.file, buf, count, 0); */
 		}
 		fdput(f);
 	}
 
 	return ret;
 }
+
 
 SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf,
 			 size_t, count, loff_t, pos)
@@ -843,8 +861,18 @@ SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf,
 	f = fdget(fd);
 	if (f.file) {
 		ret = -ESPIPE;
-		if (f.file->f_mode & FMODE_PWRITE){
-			ret = vfs_write(f.file, buf, count, &pos);
+		struct file *file = f.file;
+		if (f.file->f_mode & FMODE_PWRITE) {
+			if (has_shuffled_blocks(f.file)) {
+				if ((pos + count) > f.file->f_inode->i_size) {
+					printk(KERN_ERR"lwg:%s:%d:warning!!appending changes block mapping\n", __func__, __LINE__);
+				} else {
+					if (!actual_to_shuffled_blocks(file, &pos)) {
+						file = file->s._f;
+					}
+				}
+			}
+			ret = vfs_write(file, buf, count, &pos);
 			enigma_rw(f.file, buf, count, 1);
 		}
 		fdput(f);

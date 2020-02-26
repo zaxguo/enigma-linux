@@ -392,7 +392,7 @@ int sanity_check_shuffled_blocks(struct file *src, unsigned long *bmap, struct f
 	}
 	kfree(tmp);
 	kfree(tmp2);
-	printk("lwg:%s:%d:sanity checked passed\n", __func__, __LINE__);
+	printk("lwg:%s:%d:sanity checked passed for lblk %lu + %lud\n", __func__, __LINE__, start, cnt);
 	return 0;
 }
 
@@ -427,22 +427,42 @@ complete:
 }
 
 
+static int match_enigma_file(const void *p, struct file *f, unsigned n) {
+	char *to_match = (char *)p;
+	char *file_name = f->f_path.dentry->d_name.name;
+	to_match = strrchr(to_match, '/');
+	to_match += 1;
+	printk("lwg:%s:%d:trying to match %s and %s\n", __func__, __LINE__, to_match, file_name);
+	if (!strcmp(to_match, file_name)) {
+		return n;
+	}
+	return 0;
+}
+
 static struct file *get_current_matching_file(char *filename) {
-	/* struct file_struct *files = get_files_struct(current); */
-	/* hard coded... */
-	return fcheck(3);
+	int ret;
+	struct files_struct *files = get_files_struct(current);
+	struct file *f = NULL;
+	ret = iterate_fd(files, 0, match_enigma_file, filename);
+	if (ret) {
+		f = fcheck(ret);
+	}
+	put_files_struct(files);
+	return f;
 }
 
 
 static int enigma_data_block_shuffling(char *filename) {
 	/* printk("lwg:%s;%d:caller %s\n", __func__, __LINE__, current->comm); */
 	/* struct file *f = filp_open(filename, O_RDWR, 0); */
-	struct file *f = fcheck(3);
-	printk("lwg:%s;%d:caller %s\n", __func__, __LINE__, current->comm);
-	if (IS_ERR(f)) {
+	struct file *f = get_current_matching_file(filename);
+	if (!f) {
 		printk("lwg:%s:%d:fail to open the file %s...\n", __func__, __LINE__, filename);
 		return 0;
 	}
+	/* just to be  careful */
+	vfs_fsync(f, 0);
+	printk("lwg:%s:%d:caller %s, found matching file...\n", __func__, __LINE__, current->comm);
 	struct inode *ino = file_inode(f);
 	if (!ino) {
 		printk("lwg:%s:%d:%s does not have inode??...\n", __func__, __LINE__, filename);
@@ -475,18 +495,32 @@ static int enigma_data_block_shuffling(char *filename) {
 		new_fname = strcat(filename, "-shuffled");
 		new_f = filp_open(new_fname, O_RDWR | O_CREAT, 0);
 		if (!IS_ERR(new_f)) {
+			/* make sure read from most recent version */
+			ret = invalidate_mapping_pages(f->f_mapping, 0, -1);
+			printk("lwg:%s:%d:cleared %d pages of orig file pagecache!\n", __func__, __LINE__, ret);
 			write_shuffled_data_blocks(f, new_f, bmap, lblks, ino->i_blkbits);
+			vfs_fsync(new_f, 0);
 			ret = sanity_check_shuffled_blocks(f, bmap, new_f, 0, lblks, ino->i_blkbits);
 			/* setting up shuffled f for current process */
 			f->s.bmap = bmap;
 			f->s._f	  = new_f;
 			printk("lwg:%s:%d:shuffled file and bmap created!\n", __func__, __LINE__);
+			ret = invalidate_mapping_pages(new_f->f_mapping, 0, -1);
+			printk("lwg:%s:%d:cleared %d pages of shuffled file pagecache!\n", __func__, __LINE__, ret);
 		} else {
 			printk("lwg:%s:%d:unable to create shuffled file!\n", __func__, __LINE__);
 		}
 
+	} else {
+		printk("lwg:%s:%d:whats wrong????", __func__, __LINE__);
 	}
 	return 0;
+}
+
+static unsigned long enigma_clear_file_cache(char *filename) {
+	unsigned long ret;
+	struct file *f = get_current_matching_file(filename);
+	return invalidate_mapping_pages(f->f_mapping, 0, -1);
 }
 
 static ssize_t enigma_ctrl_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
@@ -494,14 +528,23 @@ static ssize_t enigma_ctrl_write(struct file *file, const char __user *buf, size
 	char tmp[128];
 	char str[64];
 	int k= 0;
+	struct timespec start, end;
 	if (copy_from_user(tmp, buf, count)) {
 		return -EFAULT;
 	}
 	ret = sscanf(tmp, "%d %s\n", &k, str);
 	if (ret == 2) { /* matched two, data shuffling */
-		printk("lwg:%s:shuffling data blocks for %s...\n", __func__, str);
-		/* data block shuffling .... */
-		enigma_data_block_shuffling(str);
+		if (k == 0) {
+			printk("lwg:%s:shuffling data blocks for %s...\n", __func__, str);
+			/* data block shuffling .... */
+			getnstimeofday(&start);
+			enigma_data_block_shuffling(str);
+			getnstimeofday(&end);
+			printk("lwg:%s:%d:shuffling takes %ld ms\n", __func__, __LINE__, (end.tv_sec - start.tv_sec)*1000 + (end.tv_nsec - start.tv_nsec)/1000000);
+		} else if (k == 1) {
+			printk("lwg:%s:clear page cache for %s...\n", __func__, str);
+			enigma_clear_file_cache(str);
+		}
 	} else if (ret == 1) {
 		enigma_k = k;
 		printk("lwg:%s:Adjusting K to %d...\n", __func__, enigma_k);
