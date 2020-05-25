@@ -388,8 +388,10 @@ int mnt_want_write(struct vfsmount *m)
 
 	sb_start_write(m->mnt_sb);
 	ret = __mnt_want_write(m);
-	if (ret)
+	if (ret) {
+		printk("lwg:%s:%d:read only...\n", __func__, __LINE__);
 		sb_end_write(m->mnt_sb);
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(mnt_want_write);
@@ -1588,7 +1590,7 @@ out_unlock:
 	namespace_unlock();
 }
 
-/* 
+/*
  * Is the caller allowed to modify his namespace?
  */
 static inline bool may_mount(void)
@@ -2134,7 +2136,7 @@ static int do_loopback(struct path *path, const char *old_name,
 
 	err = -EINVAL;
 	if (mnt_ns_loop(old_path.dentry))
-		goto out; 
+		goto out;
 
 	mp = lock_mount(path);
 	err = PTR_ERR(mp);

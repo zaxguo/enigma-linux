@@ -451,7 +451,7 @@ static int lo_read_simple(struct loop_device *lo, struct request *rq,
 	/* debugging */
 	is_init = 0;
 
-	printk("lwg:%s:%d:hit\n", __func__, __LINE__);
+	/* printk("lwg:%s:%d:hit\n", __func__, __LINE__); */
 	if (is_init) {
 		/* is_init = sb->s_flags & MS_OFS; */
 		/* printk("lwg:%s:%d:init done, mount complete, read from sec world\n", __func__, __LINE__); */
@@ -676,6 +676,7 @@ static int lo_rw_aio(struct loop_device *lo, struct loop_cmd *cmd,
 	unsigned int count = bio_sectors(bio);
 	ofs_dump_bio(bio);
 	if (!strncmp(disk_name, "loop", 4)) {
+		/* printk("lwg:%s:%d:XXX...\n", __func__, __LINE__); */
 		if (bio->bi_opf & REQ_META) {
 			/* do nothing */
 		} else if (enigma_k > 0 && count > 8) {
@@ -687,10 +688,12 @@ disk_name) ;
 		}
 	}
 
-	if (rw == WRITE)
+	if (rw == WRITE) {
 		ret = file->f_op->write_iter(&cmd->iocb, &iter);
-	else
+		printk("lwg:%s:%d:XXX...\n", __func__, __LINE__);
+	} else {
 		ret = file->f_op->read_iter(&cmd->iocb, &iter);
+	}
 
 	if (ret != -EIOCBQUEUED)
 		cmd->iocb.ki_complete(&cmd->iocb, ret, 0);
@@ -808,6 +811,7 @@ static void loop_reread_partitions(struct loop_device *lo,
 {
 	int rc;
 
+	printk("lwg:%s:%d:trying to reread partition...\n", __func__, __LINE__);
 	/*
 	 * bd_mutex has been held already in release path, so don't
 	 * acquire it if this function is called in such case.
@@ -1053,6 +1057,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	int		lo_flags = 0;
 	int		error;
 	loff_t		size;
+	int is_enigma_disk = 0;
 
 	/* This is safe, since we have a reference from open(). */
 	__module_get(THIS_MODULE);
@@ -1061,6 +1066,13 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	file = fget(arg);
 	if (!file)
 		goto out;
+
+	/* lwg: set backing file */
+	if (!strcmp(file->f_path.dentry->d_name.name, "enigma_disk.bin")) {
+		/* looks like this is working */
+		printk("lwg:%s:%d:trying to setup enigma disk...\n", __func__, __LINE__);
+		is_enigma_disk = 1;
+	}
 
 	error = -EBUSY;
 	if (lo->lo_state != Lo_unbound)
@@ -1269,6 +1281,7 @@ static int loop_clr_fd(struct loop_device *lo)
 	return 0;
 }
 
+/* lwg: seems the correct way of setting offset within file, etc. */
 static int
 loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 {
@@ -1347,6 +1360,7 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 	return 0;
 }
 
+/* lwg: TODO: next will address mounting the same file twice... */
 static int
 loop_get_status(struct loop_device *lo, struct loop_info64 *info)
 {
@@ -1898,14 +1912,26 @@ static int loop_add(struct loop_device **l, int i)
 {
 	struct loop_device *lo;
 	struct gendisk *disk;
-	int err;
+	int err, is_enigma_disk;
 
+	is_enigma_disk = 0;
 	err = -ENOMEM;
 	lo = kzalloc(sizeof(*lo), GFP_KERNEL);
 	if (!lo)
 		goto out;
 
 	lo->lo_state = Lo_unbound;
+
+	/* lwg: use the leftmost bit to mask an Enigma disk */
+#define ENIGMA_LOOP_MASK (0x1 << 16)
+
+	if (i & ENIGMA_LOOP_MASK) {
+		is_enigma_disk = 1;
+		/* lwg: clear the mask, restore */
+		i &= ~ENIGMA_LOOP_MASK;
+		printk("lwg:%s:%d: we are adding an Enigma loop device %d!\n", __func__, __LINE__, i);
+	}
+
 
 	/* allocate id, if @id >= 0, we're requesting that specific id */
 	if (i >= 0) {
@@ -1915,6 +1941,10 @@ static int loop_add(struct loop_device **l, int i)
 	} else {
 		err = idr_alloc(&loop_index_idr, lo, 0, 0, GFP_KERNEL);
 	}
+
+
+
+
 	if (err < 0)
 		goto out_free_dev;
 	i = err;
@@ -1980,7 +2010,16 @@ static int loop_add(struct loop_device **l, int i)
 	disk->fops		= &lo_fops;
 	disk->private_data	= lo;
 	disk->queue		= lo->lo_queue;
-	sprintf(disk->disk_name, "loop%d", i);
+
+	if (is_enigma_disk) {
+		/* lwg: maybe set identifier in here. */
+		sprintf(disk->disk_name, "loop_enigma%d", i);
+		printk("lwg:%s:%d:trying to read enigma disk partition...\n", __func__, __LINE__);
+		/* loop_reread_partitions(lo, lo->lo_device); */
+	} else {
+		sprintf(disk->disk_name, "loop%d", i);
+	}
+
 	add_disk(disk);
 	*l = lo;
 	return lo->lo_number;
@@ -2064,6 +2103,8 @@ static struct kobject *loop_probe(dev_t dev, int *part, void *data)
 	return kobj;
 }
 
+
+/* lwg: intercept enigma control interface.. */
 static long loop_control_ioctl(struct file *file, unsigned int cmd,
 			       unsigned long parm)
 {
