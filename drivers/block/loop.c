@@ -77,7 +77,9 @@
 #include <linux/falloc.h>
 #include <linux/uio.h>
 #include "loop.h"
+#include "enigma_loop.h"
 
+#include <linux/blkpg.h>
 #include <asm/uaccess.h>
 /* TODO: put ofs-related global data structures into one file and
  * ofs_tee into a common header */
@@ -85,6 +87,7 @@
 #include <ofs/ofs_util.h>
 #include <ofs/ofs_net.h>
 #include <linux/list.h>
+#include <linux/random.h>
 extern int enigma_k;
 extern struct tee_device *ofs_tee;
 extern struct tee_context *ofs_tee_context;
@@ -106,6 +109,69 @@ static int part_shift;
 LIST_HEAD(ofs_cloud_bio_list);
 EXPORT_SYMBOL(ofs_cloud_bio_list);
 
+/* lwg:dealing with legacy name.. */
+#define LO_FLAGS_ENIGMA LO_FLAGS_OFS
+
+extern int enigma_drop_caches(void);
+static struct enigma_part_tbl enigma_parts;
+
+static inline int enigma_add_part(struct gendisk *disk, int partno, sector_t start, sector_t len, int flags, struct partition_meta_info *info) {
+	struct hd_struct *part = add_partition(disk, partno, start, len, flags, info);
+	if (IS_ERR(part)) {
+		printk(KERN_ERR, " %s: p%d could not be added...\n",
+			disk->disk_name, partno);
+		return -1;
+	}
+	printk("lwg:%s:%d:adding %d => [%p]...\n", __func__, __LINE__, enigma_parts.count, part);
+	enigma_parts.part_list[enigma_parts.count++] = part;
+	return 0;
+}
+
+
+static inline void u64_swap(void *a, void *b) {
+	u64 t = *(u64 *)a;
+	*(u64 *)a = *(u64 *)b;
+	*(u64 *)b = t;
+}
+
+/* Fisher-Yates */
+void shuffle_part(sector_t * arr, int count) {
+	int i;
+	for (i = count - 1; i > 0; i--) {
+		int j = get_random_int() % (i + 1);
+		u64_swap(&arr[i], &arr[j]);
+	}
+	return 0;
+}
+
+static void enigma_loop_rand(void) {
+	int i,size;
+	int count = enigma_parts.count;
+	struct hd_struct **parts = enigma_parts.part_list;
+	sector_t sectors[count + 1];
+	size = 0;
+	for (i = 0; i < count; i++) {
+		struct hd_struct *p = parts[i];
+		if (IS_ERR(p)) {
+			printk("[%d] has null part table..\n", i);
+			continue;
+		}
+		sectors[size++] = p->start_sect;
+		printk("p[%d]:start = %ld\n", i, p->start_sect);
+	}
+	shuffle_part(sectors, size);
+	printk("lwg:%s:%d:after shuffling...\n", __func__, __LINE__);
+	for (i = 0; i < size; i++) {
+		printk("[%d] -- [%ld]\n", i, sectors[i]);
+	}
+	// Apply the shuffled ptable
+	for (i = 0; i < count; i++) {
+		struct hd_struct *p = parts[i];
+		p->start_sect = sectors[i];
+	}
+	printk("lwg:%s:%d:applied shuffling & drop cache...\n", __func__, __LINE__);
+	enigma_drop_caches();
+}
 
 /* verify and consume bio */
 static int ofs_verify_block(int blknr, int rw) {
@@ -827,6 +893,7 @@ static void loop_reread_partitions(struct loop_device *lo,
 	if (rc)
 		pr_warn("%s: partition scan of loop%d (%s) failed (rc=%d)\n",
 			__func__, lo->lo_number, lo->lo_file_name, rc);
+	printk("lwg:%s:%d:trying to reread partition...\n", __func__, __LINE__);
 }
 
 /*
@@ -1067,8 +1134,9 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	if (!file)
 		goto out;
 
+	printk("lwg:%s:%d:trying to setup enigma disk %x...\n", __func__, __LINE__, lo->lo_flags);
 	/* lwg: set backing file */
-	if (!strcmp(file->f_path.dentry->d_name.name, "enigma_disk.bin")) {
+	if (lo->lo_flags & LO_FLAGS_ENIGMA) {
 		/* looks like this is working */
 		printk("lwg:%s:%d:trying to setup enigma disk...\n", __func__, __LINE__);
 		is_enigma_disk = 1;
@@ -1149,10 +1217,23 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	if (lo->lo_flags & LO_FLAGS_PARTSCAN)
 		loop_reread_partitions(lo, bdev);
 
+	if (is_enigma_disk) {
+		loop_reread_partitions(lo, bdev);
+	}
+
 	/* Grab the block_device to prevent its destruction after we
 	 * put /dev/loopXX inode. Later in loop_clr_fd() we bdput(bdev).
 	 */
 	bdgrab(bdev);
+	if (is_enigma_disk) {
+		int ret;
+		ret = enigma_add_part(lo->lo_disk, 1, 4096, 4096, ADDPART_FLAG_NONE, NULL);
+		ret = enigma_add_part(lo->lo_disk, 2, 8192, 4096, ADDPART_FLAG_NONE, NULL);
+		ret = enigma_add_part(lo->lo_disk, 3, 12288, 4096, ADDPART_FLAG_NONE, NULL);
+		if (ret) {
+			printk("lwg:%s:%d: cannot add part for enigma disk...\n", __func__, __LINE__);
+		}
+	}
 	return 0;
 
  out_putf:
@@ -1570,6 +1651,14 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 		if ((mode & FMODE_WRITE) || capable(CAP_SYS_ADMIN))
 			err = loop_set_dio(lo, arg);
 		break;
+	case ENIGMA_LOOP_RAND:
+		printk("lwg:%s:%d:received a rand ioctl..\n", __func__, __LINE__);
+		if (enigma_parts.count <=1 ) {
+			printk("lwg:%s:%d: does not make sense to randomize <= 1 partitions!\n", __func__, __LINE__);
+		} else {
+			enigma_loop_rand();
+		}
+		break;
 	default:
 		err = lo->ioctl ? lo->ioctl(lo, cmd, arg) : -EINVAL;
 	}
@@ -1930,6 +2019,7 @@ static int loop_add(struct loop_device **l, int i)
 		/* lwg: clear the mask, restore */
 		i &= ~ENIGMA_LOOP_MASK;
 		printk("lwg:%s:%d: we are adding an Enigma loop device %d!\n", __func__, __LINE__, i);
+		lo->lo_flags |= LO_FLAGS_ENIGMA;
 	}
 
 
@@ -2014,8 +2104,6 @@ static int loop_add(struct loop_device **l, int i)
 	if (is_enigma_disk) {
 		/* lwg: maybe set identifier in here. */
 		sprintf(disk->disk_name, "loop_enigma%d", i);
-		printk("lwg:%s:%d:trying to read enigma disk partition...\n", __func__, __LINE__);
-		/* loop_reread_partitions(lo, lo->lo_device); */
 	} else {
 		sprintf(disk->disk_name, "loop%d", i);
 	}
@@ -2182,6 +2270,8 @@ static int __init loop_init(void)
 		return err;
 
 	part_shift = 0;
+	// lwg: change the max partitions..
+	max_part = 3;
 	if (max_part > 0) {
 		part_shift = fls(max_part);
 
@@ -2236,6 +2326,9 @@ static int __init loop_init(void)
 		loop_add(&lo, i);
 	mutex_unlock(&loop_index_mutex);
 
+
+	/* lwg:init enigma part structures */
+	enigma_parts.count = 0;
 
 	/* init ofs block shm */
 #if 0

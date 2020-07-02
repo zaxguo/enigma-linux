@@ -144,6 +144,7 @@ check_partition(struct gendisk *hd, struct block_device *bdev)
 	struct parsed_partitions *state;
 	int i, res, err;
 
+	// lwg: this only allocates ptbl struct
 	state = allocate_partitions(hd);
 	if (!state)
 		return NULL;

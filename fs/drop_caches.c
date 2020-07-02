@@ -39,6 +39,12 @@ static void drop_pagecache_sb(struct super_block *sb, void *unused)
 	iput(toput_inode);
 }
 
+// lwg: helper
+void enigma_drop_caches(void) {
+	iterate_supers(drop_pagecache_sb, NULL);
+}
+EXPORT_SYMBOL(enigma_drop_caches);
+
 int drop_caches_sysctl_handler(struct ctl_table *table, int write,
 	void __user *buffer, size_t *length, loff_t *ppos)
 {
